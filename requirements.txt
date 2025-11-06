@@ -1,77 +1,11 @@
-# ============================================================
-# Artemis Health - Animal Health Monitoring System
-# Python Requirements File
-# Python Version: >=3.8
-# ============================================================
+# Configuration management
+pyyaml>=6.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
 
-# ------------------------------------------------------------
-# Core Data Processing Libraries
-# ------------------------------------------------------------
-# High-performance data structures and manipulation
-pandas>=1.3.0,<2.0.0
+# Data processing (for future tasks)
+numpy>=1.24.0
+pandas>=2.0.0
 
-# Numerical computing and array operations
-numpy>=1.21.0,<2.0.0
-
-# ------------------------------------------------------------
-# Machine Learning and Statistical Analysis
-# ------------------------------------------------------------
-# Comprehensive ML algorithms (classification, regression, clustering)
-scikit-learn>=1.0.0,<2.0.0
-
-# Scientific computing and advanced statistical functions
-scipy>=1.7.0,<2.0.0
-
-# Gradient boosting framework for advanced ML models
-xgboost>=1.5.0,<2.0.0
-
-# ------------------------------------------------------------
-# Model Persistence
-# ------------------------------------------------------------
-# Efficient model serialization and deserialization
-joblib>=1.1.0,<2.0.0
-
-# ------------------------------------------------------------
-# Data Visualization
-# ------------------------------------------------------------
-# Static plotting and visualization
-matplotlib>=3.4.0,<4.0.0
-
-# Statistical data visualization built on matplotlib
-seaborn>=0.11.0,<1.0.0
-
-# Interactive and dynamic visualizations
-plotly>=5.0.0,<6.0.0
-
-# ------------------------------------------------------------
-# Dashboard and Web Interface
-# ------------------------------------------------------------
-# Rapid dashboard development and deployment
-streamlit>=1.10.0,<2.0.0
-
-# ============================================================
-# Development Dependencies
-# ============================================================
-
-# ------------------------------------------------------------
-# Testing Framework
-# ------------------------------------------------------------
-# Modern Python testing framework
-pytest>=7.0.0,<8.0.0
-
-# Test coverage reporting for pytest
-pytest-cov>=3.0.0,<5.0.0
-
-# ------------------------------------------------------------
-# Development Tools (Optional)
-# ------------------------------------------------------------
-# Interactive notebook environment for exploration
-# Uncomment if needed:
-# jupyter>=1.0.0,<2.0.0
-# ipykernel>=6.0.0,<7.0.0
-
-# Code formatting and linting
-# Uncomment if needed:
-# black>=22.0.0,<24.0.0
-# flake8>=4.0.0,<6.0.0
-# pylint>=2.12.0,<3.0.0
+# Machine learning (for future tasks)
+scikit-learn>=1.3.0
