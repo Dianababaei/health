@@ -1,322 +1,77 @@
-# =============================================================================
-# Artemis Health Configuration File
-# =============================================================================
-# This configuration file contains all system parameters for the animal health
-# monitoring system. Parameters are organized by functional sections.
-# =============================================================================
+# Artemis Health Monitoring System - Configuration File
+# This file contains all configuration settings for the system
 
-# =============================================================================
-# SENSOR SPECIFICATIONS
-# =============================================================================
-# Defines the 7 sensor channels, their units, and valid data ranges
-# Data is collected every minute from the neck-mounted sensor
-sensor:
-  channels:
-    - name: Temperature
-      unit: "°C"
-      description: "Animal body temperature measured by thermal sensor"
-      min_valid: 35.0
-      max_valid: 42.0
-      
-    - name: Fxa
-      unit: "m/s²"
-      description: "X-axis acceleration (forward-backward movement)"
-      min_valid: -20.0
-      max_valid: 20.0
-      
-    - name: Mya
-      unit: "m/s²"
-      description: "Y-axis acceleration (lateral side-to-side movement)"
-      min_valid: -20.0
-      max_valid: 20.0
-      
-    - name: Rza
-      unit: "m/s²"
-      description: "Z-axis acceleration (vertical up-down movement)"
-      min_valid: -20.0
-      max_valid: 20.0
-      
-    - name: Sxg
-      unit: "deg/s"
-      description: "X-axis angular velocity (roll - twisting motion)"
-      min_valid: -250.0
-      max_valid: 250.0
-      
-    - name: Lyg
-      unit: "deg/s"
-      description: "Y-axis angular velocity (pitch - head up/down)"
-      min_valid: -250.0
-      max_valid: 250.0
-      
-    - name: Dzg
-      unit: "deg/s"
-      description: "Z-axis angular velocity (yaw - horizontal rotation)"
-      min_valid: -250.0
-      max_valid: 250.0
-  
-  sampling_rate: 1  # minutes per sample
-  malfunction_threshold: 0.95  # Fraction of readings out of range to trigger alert
-
-# =============================================================================
-# FEATURE EXTRACTION PARAMETERS
-# =============================================================================
-# Configuration for time-series feature extraction from sensor data
-feature_extraction:
-  # Window sizes for rolling statistics (in minutes)
-  window_sizes:
-    short: 1    # 1-minute window (real-time)
-    medium: 5   # 5-minute window (short-term patterns)
-    long: 10    # 10-minute window (medium-term trends)
-  
-  # Statistical features to compute for each window
-  statistical_features:
-    - mean
-    - std
-    - min
-    - max
-    - median
-    - q25        # 25th percentile
-    - q75        # 75th percentile
-    - range      # max - min
-    - iqr        # Interquartile range (q75 - q25)
-    - skewness
-    - kurtosis
-  
-  # Additional derived features
-  derived_features:
-    - activity_magnitude  # Combined acceleration magnitude
-    - rotation_magnitude  # Combined angular velocity magnitude
-    - temp_change_rate    # Rate of temperature change
-    - activity_temp_ratio # Activity to temperature ratio
-
-# =============================================================================
-# MACHINE LEARNING MODEL HYPERPARAMETERS
-# =============================================================================
-# Configuration for ML models used in behavior and health classification
-model:
-  # Model types to use for different tasks
-  models:
-    behavior_classifier:
-      type: "RandomForest"
-      n_estimators: 100
-      max_depth: 15
-      min_samples_split: 10
-      min_samples_leaf: 5
-      random_state: 42
-      
-    health_classifier:
-      type: "GradientBoosting"
-      n_estimators: 150
-      learning_rate: 0.1
-      max_depth: 10
-      min_samples_split: 10
-      random_state: 42
-      
-    anomaly_detector:
-      type: "IsolationForest"
-      n_estimators: 100
-      contamination: 0.1
-      random_state: 42
-  
-  # Training parameters
-  training:
-    test_size: 0.2
-    validation_size: 0.1
-    cross_validation_folds: 5
-    random_state: 42
-
-# =============================================================================
-# ALERT THRESHOLDS
-# =============================================================================
-# Thresholds for triggering health and behavioral alerts
-alerts:
-  # Temperature-based alerts
-  temperature:
-    fever_threshold: 39.5          # °C - Temperature above this indicates fever
-    heat_stress_high: 40.0         # °C - Critical heat stress level
-    hypothermia_threshold: 37.0    # °C - Temperature below this is concerning
-    
-  # Activity-based alerts  
-  activity:
-    inactivity_duration: 120       # minutes - Alert if no significant movement
-    high_activity_threshold: 15.0  # m/s² - Unusually high activity level
-    low_activity_threshold: 0.5    # m/s² - Threshold for considering "inactive"
-    
-  # Combined condition alerts
-  combined:
-    # Fever: high temp + low activity
-    fever:
-      temp_threshold: 39.5         # °C
-      activity_threshold: 1.0      # m/s² - Activity below this with high temp
-      duration_minutes: 30         # Must persist for this duration
-      
-    # Heat stress: high temp + high activity
-    heat_stress:
-      temp_threshold: 39.0         # °C
-      activity_threshold: 10.0     # m/s² - Activity above this with high temp
-      duration_minutes: 15         # Must persist for this duration
-      
-    # Estrus detection: slight temp increase + increased activity
-    estrus:
-      temp_increase: 0.3           # °C above baseline
-      temp_increase_max: 0.6       # °C maximum increase
-      activity_multiplier: 1.5     # Activity should be 1.5x baseline
-      duration_hours: 12           # Typical duration
-      
-  # Confidence thresholds for ML predictions
-  confidence:
-    min_prediction_confidence: 0.7  # Minimum confidence to accept prediction
-    alert_confidence: 0.8            # Confidence threshold for triggering alerts
-    critical_alert_confidence: 0.9   # Confidence for critical health alerts
-
-# =============================================================================
-# FILE PATHS
-# =============================================================================
-# All paths are relative to the project root directory
-# Use environment variables for deployment-specific paths
-paths:
-  # Data directories
-  data:
-    raw: "data/raw"                      # Raw sensor data
-    processed: "data/processed"          # Cleaned and preprocessed data
-    features: "data/features"            # Extracted features
-    interim: "data/interim"              # Intermediate processing results
-    
-  # Model directories
-  models:
-    trained: "models/trained"            # Saved trained models
-    checkpoints: "models/checkpoints"    # Training checkpoints
-    exports: "models/exports"            # Exported models for deployment
-    
-  # Output directories
-  outputs:
-    reports: "outputs/reports"           # Analysis reports
-    alerts: "outputs/alerts"             # Generated alerts
-    visualizations: "outputs/viz"        # Plots and visualizations
-    predictions: "outputs/predictions"   # Model predictions
-    
-  # Log directories
-  logs:
-    application: "logs/application.log"
-    errors: "logs/errors.log"
-    alerts: "logs/alerts.log"
-    data_quality: "logs/data_quality.log"
-
-# =============================================================================
+# ============================================================================
 # LOGGING CONFIGURATION
-# =============================================================================
-# Logging settings for application monitoring and debugging
+# ============================================================================
 logging:
-  # Global log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-  level: "INFO"
+  # Root logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  # Use DEBUG for development, INFO for production
+  level: INFO
   
-  # Log format
-  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-  date_format: "%Y-%m-%d %H:%M:%S"
+  # Log message format
+  # Available fields: %(asctime)s, %(name)s, %(levelname)s, %(message)s, %(filename)s, %(lineno)d
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
   
-  # File rotation settings
+  # Date format for timestamps
+  date_format: '%Y-%m-%d %H:%M:%S'
+  
+  # Log rotation configuration
   rotation:
-    max_bytes: 10485760  # 10 MB per log file
-    backup_count: 5      # Keep 5 backup files
+    # Rotation type: 'size' (rotate by file size) or 'time' (rotate by time interval)
+    type: size
     
-  # Logger-specific settings
-  loggers:
-    root:
-      level: "INFO"
-      handlers: ["console", "file"]
-      
-    data_processing:
-      level: "INFO"
-      handlers: ["console", "file"]
-      
-    model_training:
-      level: "DEBUG"
-      handlers: ["console", "file"]
-      
+    # For size-based rotation: maximum file size in bytes before rotation (default: 10MB)
+    max_bytes: 10485760  # 10MB = 10 * 1024 * 1024 bytes
+    
+    # Number of backup files to keep
+    backup_count: 5
+    
+    # For time-based rotation: when to rotate ('S', 'M', 'H', 'D', 'midnight', 'W0'-'W6')
+    # 'midnight' = rotate at midnight, 'D' = rotate daily, 'H' = rotate hourly
+    when: midnight
+  
+  # Handler-specific configurations
+  handlers:
+    # System log: General application flow, data loading, processing steps
+    system:
+      enabled: true
+      level: INFO
+      file: logs/system/system.log
+    
+    # Alerts log: Layer 3 health alerts (fever, heat stress, estrus, etc.)
     alerts:
-      level: "WARNING"
-      handlers: ["console", "file", "alerts_file"]
-      
-    errors:
-      level: "ERROR"
-      handlers: ["console", "errors_file"]
-  
-  # Console output
-  console:
-    enabled: true
-    level: "INFO"
-    colorize: true
+      enabled: true
+      level: INFO
+      file: logs/alerts/alerts.log
+    
+    # Training log: Model training/evaluation metrics, hyperparameters
+    training:
+      enabled: true
+      level: DEBUG  # More verbose for training details
+      file: logs/training/training.log
+    
+    # Console handler: Output to stdout/stderr (useful for development)
+    console:
+      enabled: true
+      level: INFO  # Set to DEBUG for more detailed console output
 
-# =============================================================================
-# ENVIRONMENT-SPECIFIC SETTINGS
-# =============================================================================
-# Settings that differ between development, testing, and production
-environment:
-  name: "development"  # Options: development, testing, production
-  
-  # Development settings
-  development:
-    debug: true
-    verbose_logging: true
-    save_intermediate_results: true
-    
-  # Production settings
-  production:
-    debug: false
-    verbose_logging: false
-    save_intermediate_results: false
-    performance_monitoring: true
-    
-  # Testing settings
-  testing:
-    debug: true
-    use_sample_data: true
-    mock_alerts: true
+# ============================================================================
+# APPLICATION CONFIGURATION
+# ============================================================================
+# (Additional configuration sections can be added here as the system grows)
 
-# =============================================================================
-# HEALTH SCORING PARAMETERS
-# =============================================================================
-# Configuration for the 0-100 health scoring system
-health_score:
-  # Weight factors for different components
-  weights:
-    temperature_stability: 0.30    # Weight for temperature consistency
-    activity_level: 0.25           # Weight for appropriate activity
-    behavioral_patterns: 0.25      # Weight for normal behavior patterns
-    trend_analysis: 0.20           # Weight for positive/negative trends
-    
-  # Score thresholds for health status
-  thresholds:
-    excellent: 90    # Score >= 90: Excellent health
-    good: 75         # Score >= 75: Good health
-    fair: 60         # Score >= 60: Fair health (monitor)
-    poor: 40         # Score >= 40: Poor health (attention needed)
-    critical: 0      # Score < 40: Critical (immediate action)
-    
-  # Baseline calculation parameters
-  baseline:
-    lookback_days: 7              # Days to use for baseline calculation
-    min_data_points: 100          # Minimum readings needed for baseline
-    update_frequency_hours: 24    # How often to recalculate baseline
-
-# =============================================================================
-# DATA QUALITY CHECKS
-# =============================================================================
-# Parameters for data validation and quality monitoring
-data_quality:
-  # Missing data handling
-  missing_data:
-    max_consecutive_missing: 10   # minutes - Alert if more consecutive missing
-    max_missing_percentage: 0.15  # Alert if >15% data missing in 24h window
-    
-  # Outlier detection
-  outliers:
-    method: "iqr"                 # Options: iqr, zscore, isolation_forest
-    iqr_multiplier: 3.0           # For IQR method
-    zscore_threshold: 4.0         # For Z-score method
-    
-  # Sensor malfunction detection
-  malfunction:
-    flat_line_duration: 60        # minutes - Alert if no variation
-    spike_threshold: 5.0          # Standard deviations for spike detection
-    check_frequency_minutes: 30   # How often to run malfunction checks
+# Example sections for future use:
+# database:
+#   host: localhost
+#   port: 5432
+#   name: artemis_health
+#
+# sensor:
+#   sampling_rate: 60  # seconds (data every minute)
+#   temperature_unit: celsius
+#
+# thresholds:
+#   fever_temperature: 39.5
+#   heat_stress_temperature: 40.0
+#   estrus_temp_rise: 0.3
