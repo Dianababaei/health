@@ -1,7 +1,21 @@
 """
-Utility modules for Artemis Health monitoring system.
+Utility modules for Artemis Health Monitoring System
+
+This package contains utility functions and classes used across the system.
 """
 
-from .config_loader import load_config, get_config, Config
+from .logger import (
+    setup_logging,
+    get_logger,
+    log_alert,
+    log_training_metrics,
+    ensure_logging_initialized
+)
 
-__all__ = ['load_config', 'get_config', 'Config']
+__all__ = [
+    'setup_logging',
+    'get_logger',
+    'log_alert',
+    'log_training_metrics',
+    'ensure_logging_initialized'
+]
