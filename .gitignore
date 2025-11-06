@@ -1,8 +1,32 @@
-# Python
+# ============================================================
+# Artemis Health - Python Project .gitignore
+# ============================================================
+
+# ------------------------------------------------------------
+# Virtual Environments
+# ------------------------------------------------------------
+.venv/
+venv/
+ENV/
+env/
+.virtualenv/
+
+# Conda environments
+.conda/
+*.conda
+
+# ------------------------------------------------------------
+# Python Artifacts
+# ------------------------------------------------------------
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# C extensions
 *.so
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -16,55 +40,113 @@ parts/
 sdist/
 var/
 wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
 
-# Virtual Environment
-.venv/
-venv/
-ENV/
-env/
-
-# Data files (excluded for privacy/size)
-/data/
-!data/raw/.gitkeep
-!data/processed/.gitkeep
-
-# Model files (excluded for size)
-/models/
-!models/.gitkeep
-
-# Logs
-/logs/
-!logs/system/.gitkeep
-!logs/alerts/.gitkeep
-!logs/training/.gitkeep
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Jupyter Notebook
-.ipynb_checkpoints
-*.ipynb_checkpoints/
-
+# ------------------------------------------------------------
 # Testing
+# ------------------------------------------------------------
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
 .tox/
+.nox/
+coverage.xml
+*.cover
+*.log
 
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
+# ------------------------------------------------------------
+# Jupyter Notebooks
+# ------------------------------------------------------------
+.ipynb_checkpoints/
+*.ipynb_checkpoints
 
-# Environment variables
+# ------------------------------------------------------------
+# IDE and Editor Files
+# ------------------------------------------------------------
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Spyder
+.spyderproject
+.spyproject
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ------------------------------------------------------------
+# Machine Learning / Data Science
+# ------------------------------------------------------------
+# Model files (large binary files)
+*.h5
+*.pkl
+*.pickle
+*.joblib
+*.model
+*.onnx
+
+# Data files (exclude large datasets from version control)
+*.csv
+*.parquet
+*.feather
+*.hdf5
+*.db
+*.sqlite
+*.sqlite3
+
+# However, allow small sample/test data if in specific folders
+!data/sample/*.csv
+!data/test/*.csv
+
+# ------------------------------------------------------------
+# OS-specific Files
+# ------------------------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ------------------------------------------------------------
+# Temporary Files
+# ------------------------------------------------------------
+*.tmp
+*.temp
+*.swp
+*.swo
+*.bak
+*.orig
+
+# ------------------------------------------------------------
+# Environment Variables and Secrets
+# ------------------------------------------------------------
 .env
 .env.local
+.env.*.local
+*.secret
+secrets.yaml
+secrets.json
+
+# ------------------------------------------------------------
+# Streamlit
+# ------------------------------------------------------------
+.streamlit/secrets.toml
