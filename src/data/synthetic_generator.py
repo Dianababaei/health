@@ -1,544 +1,423 @@
 """
-Synthetic Data Generator for Livestock Health Monitoring
+Synthetic data generator for animal behavior monitoring.
 
-Generates realistic sensor data with circadian rhythms and daily activity patterns.
-Supports temperature variation, behavior sequences, and sensor readings.
+Generates realistic sensor data with:
+- 6 behavior patterns: lying, standing, walking, ruminating, feeding, stress
+- Circadian temperature rhythms
+- Smooth behavior transitions
+- Multi-day continuous sequences
 """
 
 import numpy as np
-import pandas as pd
 from datetime import datetime, timedelta
-from typing import List, Dict, Tuple, Optional, Union
-import sys
-import os
+from typing import Dict, List, Tuple, Optional
+import pandas as pd
 
-# Add config to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
-from config.behavior_patterns import (
-    BEHAVIORS, HOURLY_SCHEDULE, SEQUENCE_TEMPLATES,
-    TRANSITION_MATRIX, MIN_BEHAVIOR_DURATION, MAX_BEHAVIOR_DURATION
-)
+
+class BehaviorPattern:
+    """Defines sensor characteristics for each behavior."""
+    
+    def __init__(
+        self,
+        name: str,
+        temp_mean: float,
+        temp_std: float,
+        fxa_range: Tuple[float, float],
+        mya_range: Tuple[float, float],
+        rza_range: Tuple[float, float],
+        sxg_range: Tuple[float, float],
+        lyg_range: Tuple[float, float],
+        dzg_range: Tuple[float, float],
+    ):
+        self.name = name
+        self.temp_mean = temp_mean
+        self.temp_std = temp_std
+        self.fxa_range = fxa_range
+        self.mya_range = mya_range
+        self.rza_range = rza_range
+        self.sxg_range = sxg_range
+        self.lyg_range = lyg_range
+        self.dzg_range = dzg_range
+
+
+# Define behavior patterns based on animal physiology
+BEHAVIOR_PATTERNS = {
+    'lying': BehaviorPattern(
+        name='lying',
+        temp_mean=38.2,
+        temp_std=0.15,
+        fxa_range=(-0.3, 0.3),
+        mya_range=(-0.2, 0.2),
+        rza_range=(-0.6, -0.3),  # Horizontal orientation
+        sxg_range=(-5, 5),
+        lyg_range=(-5, 5),
+        dzg_range=(-5, 5),
+    ),
+    'standing': BehaviorPattern(
+        name='standing',
+        temp_mean=38.4,
+        temp_std=0.12,
+        fxa_range=(-0.2, 0.2),
+        mya_range=(-0.15, 0.15),
+        rza_range=(-0.2, 0.2),  # Near vertical
+        sxg_range=(-8, 8),
+        lyg_range=(-8, 8),
+        dzg_range=(-10, 10),
+    ),
+    'walking': BehaviorPattern(
+        name='walking',
+        temp_mean=38.6,
+        temp_std=0.18,
+        fxa_range=(-0.8, 1.2),  # Forward acceleration
+        mya_range=(-0.5, 0.5),
+        rza_range=(-0.4, 0.3),
+        sxg_range=(-25, 25),
+        lyg_range=(-30, 30),
+        dzg_range=(-20, 20),
+    ),
+    'ruminating': BehaviorPattern(
+        name='ruminating',
+        temp_mean=38.3,
+        temp_std=0.13,
+        fxa_range=(-0.2, 0.2),
+        mya_range=(-0.4, 0.4),  # Jaw movements
+        rza_range=(-0.3, 0.1),
+        sxg_range=(-10, 10),
+        lyg_range=(-15, 15),  # Up-down head motion
+        dzg_range=(-8, 8),
+    ),
+    'feeding': BehaviorPattern(
+        name='feeding',
+        temp_mean=38.5,
+        temp_std=0.14,
+        fxa_range=(-0.3, 0.5),
+        mya_range=(-0.3, 0.3),
+        rza_range=(-0.5, -0.1),  # Head down
+        sxg_range=(-15, 15),
+        lyg_range=(-35, 35),  # Strong pitch changes
+        dzg_range=(-20, 20),
+    ),
+    'stress': BehaviorPattern(
+        name='stress',
+        temp_mean=39.0,
+        temp_std=0.25,
+        fxa_range=(-1.0, 1.0),
+        mya_range=(-0.8, 0.8),
+        rza_range=(-0.6, 0.6),
+        sxg_range=(-45, 45),  # Erratic movements
+        lyg_range=(-50, 50),
+        dzg_range=(-40, 40),
+    ),
+}
+
+
+class CircadianPattern:
+    """Generates circadian temperature and activity patterns."""
+    
+    @staticmethod
+    def get_hour_factor(hour: int) -> float:
+        """Get activity factor for given hour (0-23)."""
+        # Peak activity 6am-8pm, low activity at night
+        if 6 <= hour < 20:
+            return 1.0  # Daytime - normal activity
+        elif 20 <= hour < 22:
+            return 0.7  # Evening - reduced activity
+        elif 22 <= hour or hour < 4:
+            return 0.3  # Night - minimal activity
+        else:  # 4-6am
+            return 0.5  # Early morning - increasing activity
+    
+    @staticmethod
+    def get_temperature_adjustment(hour: int) -> float:
+        """Get temperature adjustment for circadian rhythm."""
+        # Temperature lower at night, peaks mid-afternoon
+        # Using sinusoidal pattern with minimum at 4am, maximum at 4pm
+        hour_angle = (hour - 4) * 2 * np.pi / 24
+        adjustment = 0.35 * np.sin(hour_angle)  # ±0.35°C variation
+        return adjustment
+    
+    @staticmethod
+    def get_daily_variation() -> float:
+        """Get random day-to-day variation."""
+        return np.random.normal(0, 0.1)
 
 
 class SyntheticDataGenerator:
-    """
-    Generator for synthetic livestock sensor data with realistic circadian patterns.
+    """Generates synthetic sensor data with realistic patterns."""
     
-    Features:
-    - Circadian temperature variation (sinusoidal 24-hour cycle)
-    - Time-of-day dependent behavior patterns
-    - Realistic daily activity sequences
-    - Smooth behavior transitions
-    - Sensor data generation (accelerometer, gyroscope)
-    """
+    def __init__(self, seed: Optional[int] = None):
+        """Initialize generator with optional random seed."""
+        if seed is not None:
+            np.random.seed(seed)
+        self.circadian = CircadianPattern()
     
-    def __init__(self, random_seed: Optional[int] = None):
-        """
-        Initialize the synthetic data generator.
-        
-        Args:
-            random_seed: Seed for reproducibility (optional)
-        """
-        if random_seed is not None:
-            np.random.seed(random_seed)
-        
-        # Circadian rhythm parameters
-        self.base_temp = 38.5  # Base body temperature in Celsius
-        self.temp_amplitude = 0.75  # Temperature variation amplitude
-        self.acrophase = 16  # Hour of peak temperature (typically 14-18h)
-        
-        # Sensor noise parameters
-        self.temp_noise_std = 0.1
-        self.accel_noise_std = 0.2
-        self.gyro_noise_std = 0.15
-        
-        # Behavior-specific sensor characteristics
-        self.behavior_profiles = self._initialize_behavior_profiles()
-    
-    def _initialize_behavior_profiles(self) -> Dict:
-        """
-        Define sensor characteristics for each behavior type.
-        
-        Returns:
-            Dictionary mapping behaviors to sensor value ranges
-        """
-        return {
-            'lying': {
-                'accel_mean': {'x': 0.1, 'y': 0.1, 'z': 9.8},  # Z-axis high (vertical)
-                'accel_std': {'x': 0.2, 'y': 0.2, 'z': 0.3},
-                'gyro_mean': {'x': 0.0, 'y': 0.0, 'z': 0.0},
-                'gyro_std': {'x': 0.1, 'y': 0.1, 'z': 0.1}
-            },
-            'standing': {
-                'accel_mean': {'x': 0.2, 'y': 0.2, 'z': 9.5},
-                'accel_std': {'x': 0.4, 'y': 0.4, 'z': 0.5},
-                'gyro_mean': {'x': 0.0, 'y': 0.0, 'z': 0.0},
-                'gyro_std': {'x': 0.3, 'y': 0.3, 'z': 0.3}
-            },
-            'walking': {
-                'accel_mean': {'x': 2.0, 'y': 1.5, 'z': 9.0},
-                'accel_std': {'x': 1.5, 'y': 1.2, 'z': 1.0},
-                'gyro_mean': {'x': 0.5, 'y': 0.3, 'z': 0.2},
-                'gyro_std': {'x': 0.8, 'y': 0.6, 'z': 0.5}
-            },
-            'feeding': {
-                'accel_mean': {'x': 0.8, 'y': 1.2, 'z': 8.5},
-                'accel_std': {'x': 0.8, 'y': 1.0, 'z': 0.7},
-                'gyro_mean': {'x': 0.2, 'y': 0.8, 'z': 0.1},
-                'gyro_std': {'x': 0.4, 'y': 1.0, 'z': 0.3}
-            },
-            'ruminating': {
-                'accel_mean': {'x': 0.3, 'y': 0.6, 'z': 9.3},
-                'accel_std': {'x': 0.3, 'y': 0.5, 'z': 0.4},
-                'gyro_mean': {'x': 0.1, 'y': 0.4, 'z': 0.0},
-                'gyro_std': {'x': 0.2, 'y': 0.5, 'z': 0.2}
-            }
-        }
-    
-    def calculate_circadian_temperature(
-        self, 
-        hour: float, 
-        base_temp: Optional[float] = None,
-        amplitude: Optional[float] = None,
-        acrophase: Optional[float] = None
-    ) -> float:
-        """
-        Calculate body temperature with circadian rhythm.
-        
-        Formula: temp_base + amplitude * sin(2π * (hour - acrophase) / 24)
-        
-        Args:
-            hour: Hour of day (0-24, can be fractional)
-            base_temp: Base temperature (default: self.base_temp)
-            amplitude: Temperature variation amplitude (default: self.temp_amplitude)
-            acrophase: Hour of peak temperature (default: self.acrophase)
-        
-        Returns:
-            Body temperature in Celsius
-        """
-        base = base_temp if base_temp is not None else self.base_temp
-        amp = amplitude if amplitude is not None else self.temp_amplitude
-        acro = acrophase if acrophase is not None else self.acrophase
-        
-        # Sinusoidal variation over 24-hour period
-        phase = 2 * np.pi * (hour - acro) / 24
-        temp = base + amp * np.sin(phase)
-        
-        # Add small random noise
-        temp += np.random.normal(0, self.temp_noise_std)
-        
-        return temp
-    
-    def add_circadian_rhythm(
-        self, 
-        df: pd.DataFrame,
-        timestamp_col: str = 'timestamp',
-        temp_col: str = 'temperature'
-    ) -> pd.DataFrame:
-        """
-        Apply circadian temperature rhythm to existing dataframe.
-        
-        Args:
-            df: DataFrame with timestamps
-            timestamp_col: Name of timestamp column
-            temp_col: Name of temperature column to create/update
-        
-        Returns:
-            DataFrame with circadian temperature applied
-        """
-        df = df.copy()
-        
-        # Convert timestamps to hours
-        if pd.api.types.is_datetime64_any_dtype(df[timestamp_col]):
-            hours = df[timestamp_col].dt.hour + df[timestamp_col].dt.minute / 60
-        else:
-            # Assume timestamp is in minutes from start
-            hours = (df[timestamp_col] / 60) % 24
-        
-        # Apply circadian temperature
-        df[temp_col] = hours.apply(self.calculate_circadian_temperature)
-        
-        return df
-    
-    def generate_daily_sequence(
-        self,
-        template: str = 'typical',
-        randomize: bool = True,
-        randomization_factor: float = 0.2
-    ) -> List[Tuple[int, int, str]]:
-        """
-        Generate a daily behavior sequence based on template.
-        
-        Args:
-            template: Template name ('typical', 'high_activity', 'low_activity')
-            randomize: Whether to add randomization to sequence
-            randomization_factor: Amount of randomization (0-1)
-        
-        Returns:
-            List of (start_minute, end_minute, behavior) tuples
-        """
-        if template not in SEQUENCE_TEMPLATES:
-            raise ValueError(f"Template '{template}' not found. "
-                           f"Available: {list(SEQUENCE_TEMPLATES.keys())}")
-        
-        base_sequence = SEQUENCE_TEMPLATES[template].copy()
-        
-        if not randomize:
-            return base_sequence
-        
-        # Add randomization to make sequences more realistic
-        randomized_sequence = []
-        current_minute = 0
-        
-        for start, end, behavior in base_sequence:
-            duration = end - start
-            
-            # Add random variation to duration
-            variation = int(duration * randomization_factor * (np.random.random() - 0.5) * 2)
-            new_duration = max(
-                MIN_BEHAVIOR_DURATION[behavior],
-                min(MAX_BEHAVIOR_DURATION[behavior], duration + variation)
-            )
-            
-            # Ensure we don't exceed day boundary
-            new_end = min(current_minute + new_duration, 1440)
-            
-            if new_end > current_minute:
-                randomized_sequence.append((current_minute, new_end, behavior))
-            
-            current_minute = new_end
-            
-            if current_minute >= 1440:
-                break
-        
-        # Fill any remaining time with appropriate behavior
-        if current_minute < 1440:
-            hour = current_minute // 60
-            schedule = HOURLY_SCHEDULE[hour]
-            behavior = self._sample_behavior_from_schedule(schedule)
-            randomized_sequence.append((current_minute, 1440, behavior))
-        
-        return randomized_sequence
-    
-    def generate_probabilistic_sequence(
-        self,
-        duration_minutes: int = 1440,
-        start_behavior: Optional[str] = None
-    ) -> List[Tuple[int, int, str]]:
-        """
-        Generate behavior sequence using probabilistic sampling based on time-of-day.
-        
-        This method creates more varied sequences than template-based generation
-        by sampling behaviors according to hourly schedules.
-        
-        Args:
-            duration_minutes: Total duration in minutes (default: 1440 = 24 hours)
-            start_behavior: Initial behavior (default: sample from schedule)
-        
-        Returns:
-            List of (start_minute, end_minute, behavior) tuples
-        """
-        sequence = []
-        current_minute = 0
-        
-        # Determine starting behavior
-        if start_behavior is None:
-            hour = 0
-            schedule = HOURLY_SCHEDULE[hour]
-            current_behavior = self._sample_behavior_from_schedule(schedule)
-        else:
-            current_behavior = start_behavior
-        
-        while current_minute < duration_minutes:
-            hour = (current_minute // 60) % 24
-            schedule = HOURLY_SCHEDULE[hour]
-            
-            # Determine behavior duration
-            min_duration = MIN_BEHAVIOR_DURATION[current_behavior]
-            max_duration = MAX_BEHAVIOR_DURATION[current_behavior]
-            duration = np.random.randint(min_duration, max_duration + 1)
-            
-            # Adjust for time-of-day (longer behaviors during appropriate times)
-            if schedule.get(current_behavior, 0) > 0.3:
-                duration = int(duration * 1.2)  # Extend during peak times
-            
-            end_minute = min(current_minute + duration, duration_minutes)
-            sequence.append((current_minute, end_minute, current_behavior))
-            
-            current_minute = end_minute
-            
-            if current_minute >= duration_minutes:
-                break
-            
-            # Transition to next behavior
-            next_hour = (current_minute // 60) % 24
-            next_schedule = HOURLY_SCHEDULE[next_hour]
-            
-            # Use transition matrix weighted by time-of-day schedule
-            current_behavior = self._transition_behavior(
-                current_behavior, 
-                next_schedule
-            )
-        
-        return sequence
-    
-    def _sample_behavior_from_schedule(self, schedule: Dict[str, float]) -> str:
-        """
-        Sample a behavior from schedule probabilities.
-        
-        Args:
-            schedule: Dictionary of behavior probabilities
-        
-        Returns:
-            Sampled behavior
-        """
-        behaviors = list(schedule.keys())
-        probabilities = list(schedule.values())
-        
-        # Normalize probabilities
-        total = sum(probabilities)
-        probabilities = [p / total for p in probabilities]
-        
-        return np.random.choice(behaviors, p=probabilities)
-    
-    def _transition_behavior(
-        self, 
-        current_behavior: str, 
-        time_schedule: Dict[str, float]
-    ) -> str:
-        """
-        Determine next behavior using transition matrix and time-of-day schedule.
-        
-        Args:
-            current_behavior: Current behavior
-            time_schedule: Time-of-day behavior probabilities
-        
-        Returns:
-            Next behavior
-        """
-        # Get transition probabilities
-        transitions = TRANSITION_MATRIX.get(current_behavior, {})
-        
-        # Combine transition probabilities with time-of-day schedule
-        combined_probs = {}
-        for behavior in BEHAVIORS:
-            trans_prob = transitions.get(behavior, 0.0)
-            time_prob = time_schedule.get(behavior, 0.0)
-            # Weight: 60% transition matrix, 40% time-of-day schedule
-            combined_probs[behavior] = 0.6 * trans_prob + 0.4 * time_prob
-        
-        # Normalize and sample
-        total = sum(combined_probs.values())
-        if total == 0:
-            return self._sample_behavior_from_schedule(time_schedule)
-        
-        behaviors = list(combined_probs.keys())
-        probabilities = [combined_probs[b] / total for b in behaviors]
-        
-        return np.random.choice(behaviors, p=probabilities)
-    
-    def generate_sensor_data(
+    def generate_behavior_sample(
         self,
         behavior: str,
-        num_samples: int = 1
-    ) -> Dict[str, np.ndarray]:
-        """
-        Generate sensor readings for a specific behavior.
-        
-        Args:
-            behavior: Behavior type
-            num_samples: Number of samples to generate
-        
-        Returns:
-            Dictionary with 'accel' and 'gyro' arrays
-        """
-        if behavior not in self.behavior_profiles:
-            raise ValueError(f"Unknown behavior: {behavior}")
-        
-        profile = self.behavior_profiles[behavior]
-        
-        # Generate accelerometer data (Fxa, Mya, Rza)
-        accel_x = np.random.normal(
-            profile['accel_mean']['x'],
-            profile['accel_std']['x'],
-            num_samples
-        )
-        accel_y = np.random.normal(
-            profile['accel_mean']['y'],
-            profile['accel_std']['y'],
-            num_samples
-        )
-        accel_z = np.random.normal(
-            profile['accel_mean']['z'],
-            profile['accel_std']['z'],
-            num_samples
-        )
-        
-        # Generate gyroscope data (Sxg, Lyg, Dzg)
-        gyro_x = np.random.normal(
-            profile['gyro_mean']['x'],
-            profile['gyro_std']['x'],
-            num_samples
-        )
-        gyro_y = np.random.normal(
-            profile['gyro_mean']['y'],
-            profile['gyro_std']['y'],
-            num_samples
-        )
-        gyro_z = np.random.normal(
-            profile['gyro_mean']['z'],
-            profile['gyro_std']['z'],
-            num_samples
-        )
-        
-        return {
-            'Fxa': accel_x,
-            'Mya': accel_y,
-            'Rza': accel_z,
-            'Sxg': gyro_x,
-            'Lyg': gyro_y,
-            'Dzg': gyro_z
-        }
-    
-    def generate_dataset(
-        self,
-        num_days: int = 1,
-        start_date: Optional[datetime] = None,
-        sampling_interval_minutes: int = 1,
-        sequence_type: str = 'probabilistic',
-        template: str = 'typical',
-        animal_id: Optional[str] = None
+        duration_minutes: int,
+        start_time: datetime,
+        apply_circadian: bool = True,
+        day_variation: float = 0.0,
     ) -> pd.DataFrame:
         """
-        Generate a complete synthetic dataset with circadian patterns.
+        Generate sensor data for a specific behavior.
         
         Args:
-            num_days: Number of days to generate
-            start_date: Starting date/time (default: now)
-            sampling_interval_minutes: Data sampling interval (default: 1 minute)
-            sequence_type: 'probabilistic' or 'template'
-            template: Template name if using template-based generation
-            animal_id: Animal identifier (optional)
+            behavior: Behavior name (lying, standing, walking, etc.)
+            duration_minutes: Duration in minutes
+            start_time: Starting timestamp
+            apply_circadian: Whether to apply circadian patterns
+            day_variation: Day-to-day temperature variation
         
         Returns:
-            DataFrame with complete synthetic sensor data
+            DataFrame with timestamp and sensor columns
         """
-        if start_date is None:
-            start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        if behavior not in BEHAVIOR_PATTERNS:
+            raise ValueError(f"Unknown behavior: {behavior}")
         
-        all_data = []
+        pattern = BEHAVIOR_PATTERNS[behavior]
+        data = []
         
-        for day in range(num_days):
-            current_date = start_date + timedelta(days=day)
+        for i in range(duration_minutes):
+            current_time = start_time + timedelta(minutes=i)
+            hour = current_time.hour
             
-            # Generate daily behavior sequence
-            if sequence_type == 'probabilistic':
-                sequence = self.generate_probabilistic_sequence()
+            # Base temperature
+            temp = np.random.normal(pattern.temp_mean, pattern.temp_std)
+            
+            # Apply circadian rhythm
+            if apply_circadian:
+                temp += self.circadian.get_temperature_adjustment(hour)
+                temp += day_variation
+                
+                # Adjust sensor ranges based on time of day
+                activity_factor = self.circadian.get_hour_factor(hour)
             else:
-                sequence = self.generate_daily_sequence(template=template)
+                activity_factor = 1.0
             
-            # Generate data for each behavior segment
-            for start_min, end_min, behavior in sequence:
-                duration_minutes = end_min - start_min
-                num_samples = duration_minutes // sampling_interval_minutes
-                
-                if num_samples == 0:
-                    continue
-                
-                # Generate timestamps
-                timestamps = [
-                    current_date + timedelta(minutes=start_min + i * sampling_interval_minutes)
-                    for i in range(num_samples)
-                ]
-                
-                # Generate sensor data
-                sensor_data = self.generate_sensor_data(behavior, num_samples)
-                
-                # Generate temperature with circadian rhythm
-                hours = np.array([
-                    (start_min + i * sampling_interval_minutes) / 60
-                    for i in range(num_samples)
-                ])
-                temperatures = np.array([
-                    self.calculate_circadian_temperature(h) for h in hours
-                ])
-                
-                # Compile segment data
-                for i in range(num_samples):
-                    row = {
-                        'timestamp': timestamps[i],
-                        'temperature': temperatures[i],
-                        'Fxa': sensor_data['Fxa'][i],
-                        'Mya': sensor_data['Mya'][i],
-                        'Rza': sensor_data['Rza'][i],
-                        'Sxg': sensor_data['Sxg'][i],
-                        'Lyg': sensor_data['Lyg'][i],
-                        'Dzg': sensor_data['Dzg'][i],
-                        'behavior': behavior
-                    }
-                    
-                    if animal_id is not None:
-                        row['animal_id'] = animal_id
-                    
-                    all_data.append(row)
+            # Generate sensor values with some temporal correlation
+            # Add slight smoothing to make transitions more realistic
+            fxa = np.random.uniform(*pattern.fxa_range) * activity_factor
+            mya = np.random.uniform(*pattern.mya_range) * activity_factor
+            rza = np.random.uniform(*pattern.rza_range)
+            sxg = np.random.uniform(*pattern.sxg_range) * activity_factor
+            lyg = np.random.uniform(*pattern.lyg_range) * activity_factor
+            dzg = np.random.uniform(*pattern.dzg_range) * activity_factor
+            
+            data.append({
+                'timestamp': current_time,
+                'temp': round(temp, 1),
+                'Fxa': round(fxa, 1),
+                'Mya': round(mya, 1),
+                'Rza': round(rza, 1),
+                'Sxg': round(sxg, 1),
+                'Lyg': round(lyg, 1),
+                'Dzg': round(dzg, 1),
+                'behavior_label': behavior,
+            })
         
-        # Create DataFrame
-        df = pd.DataFrame(all_data)
-        
-        # Reorder columns
-        columns = ['timestamp', 'temperature', 'Fxa', 'Mya', 'Rza', 'Sxg', 'Lyg', 'Dzg', 'behavior']
-        if animal_id is not None:
-            columns.insert(0, 'animal_id')
-        
-        df = df[columns]
-        
-        return df
+        return pd.DataFrame(data)
     
-    def set_circadian_parameters(
+    def generate_transition(
         self,
-        base_temp: Optional[float] = None,
-        amplitude: Optional[float] = None,
-        acrophase: Optional[float] = None
-    ):
+        from_behavior: str,
+        to_behavior: str,
+        start_time: datetime,
+        transition_minutes: int = 2,
+        apply_circadian: bool = True,
+        day_variation: float = 0.0,
+    ) -> pd.DataFrame:
         """
-        Update circadian rhythm parameters.
+        Generate smooth transition between two behaviors.
         
         Args:
-            base_temp: Base body temperature (~38.5°C)
-            amplitude: Temperature variation amplitude (0.5-1.0°C)
-            acrophase: Hour of peak temperature (typically 14-18h)
+            from_behavior: Starting behavior
+            to_behavior: Ending behavior
+            start_time: Starting timestamp
+            transition_minutes: Duration of transition (default 2 minutes)
+            apply_circadian: Whether to apply circadian patterns
+            day_variation: Day-to-day temperature variation
+        
+        Returns:
+            DataFrame with gradual sensor value changes
         """
-        if base_temp is not None:
-            self.base_temp = base_temp
-        if amplitude is not None:
-            self.temp_amplitude = amplitude
-        if acrophase is not None:
-            self.acrophase = acrophase
-
-
-# Convenience function
-def generate_synthetic_data(
-    num_days: int = 1,
-    animal_id: Optional[str] = None,
-    template: str = 'typical',
-    random_seed: Optional[int] = None
-) -> pd.DataFrame:
-    """
-    Quick function to generate synthetic data.
+        from_pattern = BEHAVIOR_PATTERNS[from_behavior]
+        to_pattern = BEHAVIOR_PATTERNS[to_behavior]
+        
+        data = []
+        
+        for i in range(transition_minutes):
+            current_time = start_time + timedelta(minutes=i)
+            hour = current_time.hour
+            
+            # Linear interpolation factor
+            alpha = (i + 1) / transition_minutes
+            
+            # Interpolate temperature
+            temp_mean = (1 - alpha) * from_pattern.temp_mean + alpha * to_pattern.temp_mean
+            temp_std = (1 - alpha) * from_pattern.temp_std + alpha * to_pattern.temp_std
+            temp = np.random.normal(temp_mean, temp_std)
+            
+            # Apply circadian rhythm
+            if apply_circadian:
+                temp += self.circadian.get_temperature_adjustment(hour)
+                temp += day_variation
+                activity_factor = self.circadian.get_hour_factor(hour)
+            else:
+                activity_factor = 1.0
+            
+            # Interpolate sensor ranges
+            def interpolate_range(from_range, to_range, alpha):
+                min_val = (1 - alpha) * from_range[0] + alpha * to_range[0]
+                max_val = (1 - alpha) * from_range[1] + alpha * to_range[1]
+                return (min_val, max_val)
+            
+            fxa_range = interpolate_range(from_pattern.fxa_range, to_pattern.fxa_range, alpha)
+            mya_range = interpolate_range(from_pattern.mya_range, to_pattern.mya_range, alpha)
+            rza_range = interpolate_range(from_pattern.rza_range, to_pattern.rza_range, alpha)
+            sxg_range = interpolate_range(from_pattern.sxg_range, to_pattern.sxg_range, alpha)
+            lyg_range = interpolate_range(from_pattern.lyg_range, to_pattern.lyg_range, alpha)
+            dzg_range = interpolate_range(from_pattern.dzg_range, to_pattern.dzg_range, alpha)
+            
+            # Generate interpolated values
+            fxa = np.random.uniform(*fxa_range) * activity_factor
+            mya = np.random.uniform(*mya_range) * activity_factor
+            rza = np.random.uniform(*rza_range)
+            sxg = np.random.uniform(*sxg_range) * activity_factor
+            lyg = np.random.uniform(*lyg_range) * activity_factor
+            dzg = np.random.uniform(*dzg_range) * activity_factor
+            
+            data.append({
+                'timestamp': current_time,
+                'temp': round(temp, 1),
+                'Fxa': round(fxa, 1),
+                'Mya': round(mya, 1),
+                'Rza': round(rza, 1),
+                'Sxg': round(sxg, 1),
+                'Lyg': round(lyg, 1),
+                'Dzg': round(dzg, 1),
+                'behavior_label': to_behavior,  # Label as target behavior
+            })
+        
+        return pd.DataFrame(data)
     
-    Args:
-        num_days: Number of days to generate
-        animal_id: Animal identifier
-        template: Sequence template to use
-        random_seed: Random seed for reproducibility
+    def generate_behavior_sequence(
+        self,
+        behaviors: List[Tuple[str, int]],
+        start_time: datetime,
+        apply_circadian: bool = True,
+        smooth_transitions: bool = True,
+    ) -> pd.DataFrame:
+        """
+        Generate a sequence of behaviors with optional smooth transitions.
+        
+        Args:
+            behaviors: List of (behavior_name, duration_minutes) tuples
+            start_time: Starting timestamp
+            apply_circadian: Whether to apply circadian patterns
+            smooth_transitions: Whether to generate smooth transitions
+        
+        Returns:
+            DataFrame with complete behavior sequence
+        """
+        all_data = []
+        current_time = start_time
+        day_variation = self.circadian.get_daily_variation()
+        
+        for i, (behavior, duration) in enumerate(behaviors):
+            # Add transition if not first behavior and smooth transitions enabled
+            if i > 0 and smooth_transitions:
+                prev_behavior = behaviors[i - 1][0]
+                transition_df = self.generate_transition(
+                    prev_behavior,
+                    behavior,
+                    current_time,
+                    transition_minutes=2,
+                    apply_circadian=apply_circadian,
+                    day_variation=day_variation,
+                )
+                all_data.append(transition_df)
+                current_time += timedelta(minutes=2)
+            
+            # Generate behavior data
+            behavior_df = self.generate_behavior_sample(
+                behavior,
+                duration,
+                current_time,
+                apply_circadian=apply_circadian,
+                day_variation=day_variation,
+            )
+            all_data.append(behavior_df)
+            current_time += timedelta(minutes=duration)
+        
+        return pd.concat(all_data, ignore_index=True)
     
-    Returns:
-        DataFrame with synthetic sensor data
-    """
-    generator = SyntheticDataGenerator(random_seed=random_seed)
-    return generator.generate_dataset(
-        num_days=num_days,
-        animal_id=animal_id,
-        sequence_type='probabilistic',
-        template=template
-    )
+    def generate_daily_schedule(
+        self,
+        date: datetime,
+        animal_id: Optional[str] = None,
+    ) -> List[Tuple[str, int]]:
+        """
+        Generate a realistic daily behavior schedule.
+        
+        Args:
+            date: Date for the schedule
+            animal_id: Optional animal identifier for variation
+        
+        Returns:
+            List of (behavior, duration_minutes) tuples for 24 hours
+        """
+        schedule = []
+        
+        # Night (00:00-06:00): Mostly lying with some ruminating
+        schedule.extend([
+            ('lying', np.random.randint(120, 180)),
+            ('ruminating', np.random.randint(30, 60)),
+            ('lying', np.random.randint(90, 120)),
+        ])
+        
+        # Early morning (06:00-09:00): Wake up, stand, feed
+        schedule.extend([
+            ('standing', np.random.randint(10, 20)),
+            ('walking', np.random.randint(5, 15)),
+            ('feeding', np.random.randint(45, 75)),
+            ('ruminating', np.random.randint(30, 45)),
+        ])
+        
+        # Mid-morning (09:00-12:00): Mixed activity
+        schedule.extend([
+            ('standing', np.random.randint(15, 30)),
+            ('walking', np.random.randint(15, 30)),
+            ('lying', np.random.randint(60, 90)),
+            ('ruminating', np.random.randint(30, 45)),
+        ])
+        
+        # Afternoon (12:00-17:00): Feeding, walking, rest
+        schedule.extend([
+            ('walking', np.random.randint(10, 20)),
+            ('feeding', np.random.randint(60, 90)),
+            ('ruminating', np.random.randint(45, 60)),
+            ('lying', np.random.randint(60, 90)),
+            ('standing', np.random.randint(15, 30)),
+        ])
+        
+        # Evening (17:00-20:00): Final feeding, preparation for rest
+        schedule.extend([
+            ('feeding', np.random.randint(30, 60)),
+            ('ruminating', np.random.randint(30, 45)),
+            ('standing', np.random.randint(10, 20)),
+        ])
+        
+        # Night prep (20:00-00:00): Winding down
+        schedule.extend([
+            ('lying', np.random.randint(90, 120)),
+            ('ruminating', np.random.randint(20, 40)),
+            ('lying', np.random.randint(60, 90)),
+        ])
+        
+        # Randomly add stress events (5% chance per day)
+        if np.random.random() < 0.05:
+            stress_idx = np.random.randint(0, len(schedule))
+            schedule.insert(stress_idx, ('stress', np.random.randint(5, 15)))
+        
+        return schedule
