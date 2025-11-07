@@ -1,18 +1,7 @@
-# Artemis Health Monitoring System - Python Dependencies
+# Core dependencies for synthetic data generation
+numpy>=1.21.0
+pandas>=1.3.0
+scipy>=1.7.0
 
-# Configuration Management
-PyYAML>=6.0
-
-# Note: The logging module is part of Python's standard library and requires no external dependencies
-# All logging functionality uses built-in Python modules:
-# - logging
-# - logging.handlers (RotatingFileHandler, TimedRotatingFileHandler)
-# - pathlib
-# - os
-
-# Future dependencies (for reference, to be added as needed):
-# numpy>=1.24.0
-# pandas>=2.0.0
-# scikit-learn>=1.3.0
-# matplotlib>=3.7.0
-# seaborn>=0.12.0
+# Optional dependencies for extended functionality
+matplotlib>=3.4.0
