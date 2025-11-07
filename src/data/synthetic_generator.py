@@ -1,389 +1,544 @@
 """
-Synthetic Data Generator for Animal Health Sensor Data
+Synthetic Data Generator for Livestock Health Monitoring
 
-This module generates realistic synthetic sensor data for different animal behaviors
-with configurable noise levels and smooth transitions between behaviors.
+Generates realistic sensor data with circadian rhythms and daily activity patterns.
+Supports temperature variation, behavior sequences, and sensor readings.
 """
 
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Union, Tuple
+from typing import List, Dict, Tuple, Optional, Union
 import sys
 import os
 
-# Add config directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-from config.behavior_patterns import get_behavior_params, get_all_behaviors, validate_behavior
+# Add config to path for imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
+from config.behavior_patterns import (
+    BEHAVIORS, HOURLY_SCHEDULE, SEQUENCE_TEMPLATES,
+    TRANSITION_MATRIX, MIN_BEHAVIOR_DURATION, MAX_BEHAVIOR_DURATION
+)
 
 
 class SyntheticDataGenerator:
     """
-    Generate synthetic time-series sensor data for animal behavior monitoring.
+    Generator for synthetic livestock sensor data with realistic circadian patterns.
     
-    Supports 7 sensor channels sampled at 1-minute intervals:
-    - temp: Body temperature (°C)
-    - Fxa, Mya, Rza: Acceleration on X, Y, Z axes (m/s²)
-    - Sxg, Lyg, Dzg: Angular velocity on X, Y, Z axes (rad/s)
+    Features:
+    - Circadian temperature variation (sinusoidal 24-hour cycle)
+    - Time-of-day dependent behavior patterns
+    - Realistic daily activity sequences
+    - Smooth behavior transitions
+    - Sensor data generation (accelerometer, gyroscope)
     """
     
-    CHANNELS = ['temp', 'Fxa', 'Mya', 'Rza', 'Sxg', 'Lyg', 'Dzg']
-    SAMPLING_INTERVAL_MINUTES = 1
+    def __init__(self, random_seed: Optional[int] = None):
+        """
+        Initialize the synthetic data generator.
+        
+        Args:
+            random_seed: Seed for reproducibility (optional)
+        """
+        if random_seed is not None:
+            np.random.seed(random_seed)
+        
+        # Circadian rhythm parameters
+        self.base_temp = 38.5  # Base body temperature in Celsius
+        self.temp_amplitude = 0.75  # Temperature variation amplitude
+        self.acrophase = 16  # Hour of peak temperature (typically 14-18h)
+        
+        # Sensor noise parameters
+        self.temp_noise_std = 0.1
+        self.accel_noise_std = 0.2
+        self.gyro_noise_std = 0.15
+        
+        # Behavior-specific sensor characteristics
+        self.behavior_profiles = self._initialize_behavior_profiles()
     
-    def __init__(self):
-        """Initialize the synthetic data generator."""
-        self.behaviors = get_all_behaviors()
-        
-    def generate(
-        self,
-        behavior: str,
-        duration_minutes: int,
-        start_time: Union[str, datetime] = None,
-        noise_level: float = 0.1,
-        seed: Optional[int] = None
-    ) -> pd.DataFrame:
+    def _initialize_behavior_profiles(self) -> Dict:
         """
-        Generate synthetic data for a single behavior.
+        Define sensor characteristics for each behavior type.
         
-        Parameters
-        ----------
-        behavior : str
-            Name of behavior to generate (e.g., 'lying', 'standing', 'walking')
-        duration_minutes : int
-            Duration of behavior in minutes
-        start_time : str or datetime, optional
-            Start timestamp (default: '2024-01-01 00:00:00')
-        noise_level : float, optional
-            Fraction of signal std to use as noise (default: 0.1)
-        seed : int, optional
-            Random seed for reproducibility
-            
-        Returns
-        -------
-        pd.DataFrame
-            DataFrame with columns: timestamp, temp, Fxa, Mya, Rza, Sxg, Lyg, Dzg
-            Also includes metadata as attributes
+        Returns:
+            Dictionary mapping behaviors to sensor value ranges
         """
-        # Input validation
-        self._validate_inputs(behavior, duration_minutes, noise_level)
-        
-        # Set random seed
-        if seed is not None:
-            np.random.seed(seed)
-        
-        # Parse start time
-        if start_time is None:
-            start_time = datetime(2024, 1, 1, 0, 0, 0)
-        elif isinstance(start_time, str):
-            start_time = pd.to_datetime(start_time)
-        
-        # Generate timestamps
-        timestamps = pd.date_range(
-            start=start_time,
-            periods=duration_minutes,
-            freq=f'{self.SAMPLING_INTERVAL_MINUTES}min'
-        )
-        
-        # Get behavior parameters
-        params = get_behavior_params(behavior)
-        
-        # Generate base signals for each channel
-        data = {}
-        for channel in self.CHANNELS:
-            channel_params = params['parameters'][channel]
-            base_signal = self._generate_base_signal(
-                channel,
-                duration_minutes,
-                channel_params,
-                params.get('frequencies', {})
-            )
-            
-            # Add Gaussian noise
-            noise_std = channel_params['std'] * noise_level
-            noise = np.random.normal(0, noise_std, size=duration_minutes)
-            data[channel] = base_signal + noise
-        
-        # Apply physical constraints
-        data = self._apply_constraints(data)
-        
-        # Create DataFrame
-        df = pd.DataFrame(data, index=timestamps)
-        df.index.name = 'timestamp'
-        df = df.reset_index()
-        
-        # Add metadata
-        df.attrs['behavior'] = behavior
-        df.attrs['duration_minutes'] = duration_minutes
-        df.attrs['noise_level'] = noise_level
-        df.attrs['seed'] = seed
-        df.attrs['generation_time'] = datetime.now().isoformat()
-        
-        return df
+        return {
+            'lying': {
+                'accel_mean': {'x': 0.1, 'y': 0.1, 'z': 9.8},  # Z-axis high (vertical)
+                'accel_std': {'x': 0.2, 'y': 0.2, 'z': 0.3},
+                'gyro_mean': {'x': 0.0, 'y': 0.0, 'z': 0.0},
+                'gyro_std': {'x': 0.1, 'y': 0.1, 'z': 0.1}
+            },
+            'standing': {
+                'accel_mean': {'x': 0.2, 'y': 0.2, 'z': 9.5},
+                'accel_std': {'x': 0.4, 'y': 0.4, 'z': 0.5},
+                'gyro_mean': {'x': 0.0, 'y': 0.0, 'z': 0.0},
+                'gyro_std': {'x': 0.3, 'y': 0.3, 'z': 0.3}
+            },
+            'walking': {
+                'accel_mean': {'x': 2.0, 'y': 1.5, 'z': 9.0},
+                'accel_std': {'x': 1.5, 'y': 1.2, 'z': 1.0},
+                'gyro_mean': {'x': 0.5, 'y': 0.3, 'z': 0.2},
+                'gyro_std': {'x': 0.8, 'y': 0.6, 'z': 0.5}
+            },
+            'feeding': {
+                'accel_mean': {'x': 0.8, 'y': 1.2, 'z': 8.5},
+                'accel_std': {'x': 0.8, 'y': 1.0, 'z': 0.7},
+                'gyro_mean': {'x': 0.2, 'y': 0.8, 'z': 0.1},
+                'gyro_std': {'x': 0.4, 'y': 1.0, 'z': 0.3}
+            },
+            'ruminating': {
+                'accel_mean': {'x': 0.3, 'y': 0.6, 'z': 9.3},
+                'accel_std': {'x': 0.3, 'y': 0.5, 'z': 0.4},
+                'gyro_mean': {'x': 0.1, 'y': 0.4, 'z': 0.0},
+                'gyro_std': {'x': 0.2, 'y': 0.5, 'z': 0.2}
+            }
+        }
     
-    def generate_sequence(
-        self,
-        sequence: List[Dict],
-        start_time: Union[str, datetime] = None,
-        noise_level: float = 0.1,
-        transition_duration: int = 3,
-        seed: Optional[int] = None
-    ) -> pd.DataFrame:
+    def calculate_circadian_temperature(
+        self, 
+        hour: float, 
+        base_temp: Optional[float] = None,
+        amplitude: Optional[float] = None,
+        acrophase: Optional[float] = None
+    ) -> float:
         """
-        Generate synthetic data for a sequence of behaviors with smooth transitions.
+        Calculate body temperature with circadian rhythm.
         
-        Parameters
-        ----------
-        sequence : list of dict
-            List of behavior specifications, each containing:
-            - 'behavior': behavior name
-            - 'duration': duration in minutes
-        start_time : str or datetime, optional
-            Start timestamp
-        noise_level : float, optional
-            Fraction of signal std to use as noise
-        transition_duration : int, optional
-            Duration of transition between behaviors in minutes (default: 3)
-        seed : int, optional
-            Random seed for reproducibility
-            
-        Returns
-        -------
-        pd.DataFrame
-            Combined DataFrame with all behaviors and smooth transitions
+        Formula: temp_base + amplitude * sin(2π * (hour - acrophase) / 24)
+        
+        Args:
+            hour: Hour of day (0-24, can be fractional)
+            base_temp: Base temperature (default: self.base_temp)
+            amplitude: Temperature variation amplitude (default: self.temp_amplitude)
+            acrophase: Hour of peak temperature (default: self.acrophase)
+        
+        Returns:
+            Body temperature in Celsius
         """
-        if seed is not None:
-            np.random.seed(seed)
+        base = base_temp if base_temp is not None else self.base_temp
+        amp = amplitude if amplitude is not None else self.temp_amplitude
+        acro = acrophase if acrophase is not None else self.acrophase
         
-        # Parse start time
-        if start_time is None:
-            start_time = datetime(2024, 1, 1, 0, 0, 0)
-        elif isinstance(start_time, str):
-            start_time = pd.to_datetime(start_time)
+        # Sinusoidal variation over 24-hour period
+        phase = 2 * np.pi * (hour - acro) / 24
+        temp = base + amp * np.sin(phase)
         
-        # Generate each behavior segment
-        segments = []
-        current_time = start_time
+        # Add small random noise
+        temp += np.random.normal(0, self.temp_noise_std)
         
-        for i, segment_spec in enumerate(sequence):
-            behavior = segment_spec['behavior']
-            duration = segment_spec.get('duration', 30)
-            
-            # Generate this segment
-            segment_df = self.generate(
-                behavior=behavior,
-                duration_minutes=duration,
-                start_time=current_time,
-                noise_level=noise_level,
-                seed=None  # Don't reset seed for each segment
-            )
-            
-            segments.append(segment_df)
-            current_time += timedelta(minutes=duration)
-        
-        # Concatenate all segments
-        combined_df = pd.concat(segments, ignore_index=True)
-        
-        # Apply smooth transitions between segments
-        combined_df = self._apply_transitions(
-            combined_df, 
-            sequence, 
-            transition_duration
-        )
-        
-        # Add metadata
-        combined_df.attrs['sequence'] = sequence
-        combined_df.attrs['noise_level'] = noise_level
-        combined_df.attrs['transition_duration'] = transition_duration
-        combined_df.attrs['seed'] = seed
-        combined_df.attrs['generation_time'] = datetime.now().isoformat()
-        
-        return combined_df
+        return temp
     
-    def _generate_base_signal(
-        self,
-        channel: str,
-        duration: int,
-        params: Dict,
-        frequencies: Dict
-    ) -> np.ndarray:
-        """
-        Generate base signal for a channel including rhythmic components.
-        
-        Parameters
-        ----------
-        channel : str
-            Channel name
-        duration : int
-            Number of time points
-        params : dict
-            Channel parameters with 'mean' and 'std'
-        frequencies : dict
-            Frequency components for rhythmic behaviors
-            
-        Returns
-        -------
-        np.ndarray
-            Base signal
-        """
-        # Start with mean + random variation
-        mean = params['mean']
-        std = params['std']
-        
-        # Generate base signal with some random walk characteristics
-        base = np.random.normal(mean, std * 0.3, size=duration)
-        
-        # Add frequency components if present
-        if channel in frequencies:
-            time_points = np.arange(duration) / 60.0  # Convert to hours
-            
-            for freq_spec in frequencies[channel]:
-                freq_hz = freq_spec['freq'] / 60.0  # Convert from cycles/min to Hz
-                amplitude = freq_spec['amplitude']
-                
-                # Add sinusoidal component
-                phase = np.random.uniform(0, 2 * np.pi)  # Random phase
-                sine_wave = amplitude * np.sin(2 * np.pi * freq_hz * time_points * 60 + phase)
-                base += sine_wave
-        
-        return base
-    
-    def _apply_constraints(self, data: Dict) -> Dict:
-        """
-        Apply physical constraints to sensor data.
-        
-        Parameters
-        ----------
-        data : dict
-            Dictionary of channel data
-            
-        Returns
-        -------
-        dict
-            Constrained data
-        """
-        # Temperature must be positive and in reasonable range
-        data['temp'] = np.clip(data['temp'], 35.0, 42.0)
-        
-        # Acceleration magnitudes should be reasonable (not exceeding 5g except Rza with gravity)
-        for acc_channel in ['Fxa', 'Mya']:
-            data[acc_channel] = np.clip(data[acc_channel], -49.0, 49.0)
-        
-        # Rza can include gravity component
-        data['Rza'] = np.clip(data['Rza'], -15.0, 20.0)
-        
-        # Angular velocities should be reasonable (not exceeding 2 rad/s for neck movements)
-        for gyro_channel in ['Sxg', 'Lyg', 'Dzg']:
-            data[gyro_channel] = np.clip(data[gyro_channel], -2.0, 2.0)
-        
-        return data
-    
-    def _apply_transitions(
-        self,
+    def add_circadian_rhythm(
+        self, 
         df: pd.DataFrame,
-        sequence: List[Dict],
-        transition_duration: int
+        timestamp_col: str = 'timestamp',
+        temp_col: str = 'temperature'
     ) -> pd.DataFrame:
         """
-        Apply smooth transitions between behavior segments.
+        Apply circadian temperature rhythm to existing dataframe.
         
-        Parameters
-        ----------
-        df : pd.DataFrame
-            Combined DataFrame
-        sequence : list
-            Sequence specification
-        transition_duration : int
-            Duration of transition in minutes
-            
-        Returns
-        -------
-        pd.DataFrame
-            DataFrame with smooth transitions
+        Args:
+            df: DataFrame with timestamps
+            timestamp_col: Name of timestamp column
+            temp_col: Name of temperature column to create/update
+        
+        Returns:
+            DataFrame with circadian temperature applied
         """
-        if len(sequence) <= 1:
-            return df
-        
         df = df.copy()
         
-        # Find transition points
-        current_idx = 0
-        for i in range(len(sequence) - 1):
-            segment_duration = sequence[i].get('duration', 30)
-            transition_start = current_idx + segment_duration - transition_duration // 2
-            transition_end = transition_start + transition_duration
-            
-            # Make sure indices are valid
-            transition_start = max(0, min(transition_start, len(df) - 1))
-            transition_end = max(0, min(transition_end, len(df)))
-            
-            if transition_end > transition_start:
-                # Apply sigmoid transition
-                for channel in self.CHANNELS:
-                    if transition_start > 0 and transition_end < len(df):
-                        start_val = df.loc[transition_start, channel]
-                        end_val = df.loc[transition_end, channel]
-                        
-                        # Create sigmoid blend
-                        t = np.linspace(-3, 3, transition_end - transition_start)
-                        sigmoid = 1 / (1 + np.exp(-t))
-                        
-                        # Interpolate
-                        blended = start_val * (1 - sigmoid) + end_val * sigmoid
-                        df.loc[transition_start:transition_end-1, channel] = blended
-            
-            current_idx += segment_duration
+        # Convert timestamps to hours
+        if pd.api.types.is_datetime64_any_dtype(df[timestamp_col]):
+            hours = df[timestamp_col].dt.hour + df[timestamp_col].dt.minute / 60
+        else:
+            # Assume timestamp is in minutes from start
+            hours = (df[timestamp_col] / 60) % 24
+        
+        # Apply circadian temperature
+        df[temp_col] = hours.apply(self.calculate_circadian_temperature)
         
         return df
     
-    def _validate_inputs(
+    def generate_daily_sequence(
         self,
-        behavior: str,
-        duration_minutes: int,
-        noise_level: float
-    ):
-        """Validate input parameters."""
-        if not validate_behavior(behavior):
-            raise ValueError(
-                f"Unknown behavior: '{behavior}'. "
-                f"Valid behaviors: {self.behaviors}"
+        template: str = 'typical',
+        randomize: bool = True,
+        randomization_factor: float = 0.2
+    ) -> List[Tuple[int, int, str]]:
+        """
+        Generate a daily behavior sequence based on template.
+        
+        Args:
+            template: Template name ('typical', 'high_activity', 'low_activity')
+            randomize: Whether to add randomization to sequence
+            randomization_factor: Amount of randomization (0-1)
+        
+        Returns:
+            List of (start_minute, end_minute, behavior) tuples
+        """
+        if template not in SEQUENCE_TEMPLATES:
+            raise ValueError(f"Template '{template}' not found. "
+                           f"Available: {list(SEQUENCE_TEMPLATES.keys())}")
+        
+        base_sequence = SEQUENCE_TEMPLATES[template].copy()
+        
+        if not randomize:
+            return base_sequence
+        
+        # Add randomization to make sequences more realistic
+        randomized_sequence = []
+        current_minute = 0
+        
+        for start, end, behavior in base_sequence:
+            duration = end - start
+            
+            # Add random variation to duration
+            variation = int(duration * randomization_factor * (np.random.random() - 0.5) * 2)
+            new_duration = max(
+                MIN_BEHAVIOR_DURATION[behavior],
+                min(MAX_BEHAVIOR_DURATION[behavior], duration + variation)
+            )
+            
+            # Ensure we don't exceed day boundary
+            new_end = min(current_minute + new_duration, 1440)
+            
+            if new_end > current_minute:
+                randomized_sequence.append((current_minute, new_end, behavior))
+            
+            current_minute = new_end
+            
+            if current_minute >= 1440:
+                break
+        
+        # Fill any remaining time with appropriate behavior
+        if current_minute < 1440:
+            hour = current_minute // 60
+            schedule = HOURLY_SCHEDULE[hour]
+            behavior = self._sample_behavior_from_schedule(schedule)
+            randomized_sequence.append((current_minute, 1440, behavior))
+        
+        return randomized_sequence
+    
+    def generate_probabilistic_sequence(
+        self,
+        duration_minutes: int = 1440,
+        start_behavior: Optional[str] = None
+    ) -> List[Tuple[int, int, str]]:
+        """
+        Generate behavior sequence using probabilistic sampling based on time-of-day.
+        
+        This method creates more varied sequences than template-based generation
+        by sampling behaviors according to hourly schedules.
+        
+        Args:
+            duration_minutes: Total duration in minutes (default: 1440 = 24 hours)
+            start_behavior: Initial behavior (default: sample from schedule)
+        
+        Returns:
+            List of (start_minute, end_minute, behavior) tuples
+        """
+        sequence = []
+        current_minute = 0
+        
+        # Determine starting behavior
+        if start_behavior is None:
+            hour = 0
+            schedule = HOURLY_SCHEDULE[hour]
+            current_behavior = self._sample_behavior_from_schedule(schedule)
+        else:
+            current_behavior = start_behavior
+        
+        while current_minute < duration_minutes:
+            hour = (current_minute // 60) % 24
+            schedule = HOURLY_SCHEDULE[hour]
+            
+            # Determine behavior duration
+            min_duration = MIN_BEHAVIOR_DURATION[current_behavior]
+            max_duration = MAX_BEHAVIOR_DURATION[current_behavior]
+            duration = np.random.randint(min_duration, max_duration + 1)
+            
+            # Adjust for time-of-day (longer behaviors during appropriate times)
+            if schedule.get(current_behavior, 0) > 0.3:
+                duration = int(duration * 1.2)  # Extend during peak times
+            
+            end_minute = min(current_minute + duration, duration_minutes)
+            sequence.append((current_minute, end_minute, current_behavior))
+            
+            current_minute = end_minute
+            
+            if current_minute >= duration_minutes:
+                break
+            
+            # Transition to next behavior
+            next_hour = (current_minute // 60) % 24
+            next_schedule = HOURLY_SCHEDULE[next_hour]
+            
+            # Use transition matrix weighted by time-of-day schedule
+            current_behavior = self._transition_behavior(
+                current_behavior, 
+                next_schedule
             )
         
-        if duration_minutes <= 0:
-            raise ValueError(f"Duration must be positive, got {duration_minutes}")
-        
-        if noise_level < 0:
-            raise ValueError(f"Noise level must be non-negative, got {noise_level}")
+        return sequence
     
-    def export_to_csv(
+    def _sample_behavior_from_schedule(self, schedule: Dict[str, float]) -> str:
+        """
+        Sample a behavior from schedule probabilities.
+        
+        Args:
+            schedule: Dictionary of behavior probabilities
+        
+        Returns:
+            Sampled behavior
+        """
+        behaviors = list(schedule.keys())
+        probabilities = list(schedule.values())
+        
+        # Normalize probabilities
+        total = sum(probabilities)
+        probabilities = [p / total for p in probabilities]
+        
+        return np.random.choice(behaviors, p=probabilities)
+    
+    def _transition_behavior(
+        self, 
+        current_behavior: str, 
+        time_schedule: Dict[str, float]
+    ) -> str:
+        """
+        Determine next behavior using transition matrix and time-of-day schedule.
+        
+        Args:
+            current_behavior: Current behavior
+            time_schedule: Time-of-day behavior probabilities
+        
+        Returns:
+            Next behavior
+        """
+        # Get transition probabilities
+        transitions = TRANSITION_MATRIX.get(current_behavior, {})
+        
+        # Combine transition probabilities with time-of-day schedule
+        combined_probs = {}
+        for behavior in BEHAVIORS:
+            trans_prob = transitions.get(behavior, 0.0)
+            time_prob = time_schedule.get(behavior, 0.0)
+            # Weight: 60% transition matrix, 40% time-of-day schedule
+            combined_probs[behavior] = 0.6 * trans_prob + 0.4 * time_prob
+        
+        # Normalize and sample
+        total = sum(combined_probs.values())
+        if total == 0:
+            return self._sample_behavior_from_schedule(time_schedule)
+        
+        behaviors = list(combined_probs.keys())
+        probabilities = [combined_probs[b] / total for b in behaviors]
+        
+        return np.random.choice(behaviors, p=probabilities)
+    
+    def generate_sensor_data(
         self,
-        df: pd.DataFrame,
-        filepath: str,
-        include_metadata: bool = True
+        behavior: str,
+        num_samples: int = 1
+    ) -> Dict[str, np.ndarray]:
+        """
+        Generate sensor readings for a specific behavior.
+        
+        Args:
+            behavior: Behavior type
+            num_samples: Number of samples to generate
+        
+        Returns:
+            Dictionary with 'accel' and 'gyro' arrays
+        """
+        if behavior not in self.behavior_profiles:
+            raise ValueError(f"Unknown behavior: {behavior}")
+        
+        profile = self.behavior_profiles[behavior]
+        
+        # Generate accelerometer data (Fxa, Mya, Rza)
+        accel_x = np.random.normal(
+            profile['accel_mean']['x'],
+            profile['accel_std']['x'],
+            num_samples
+        )
+        accel_y = np.random.normal(
+            profile['accel_mean']['y'],
+            profile['accel_std']['y'],
+            num_samples
+        )
+        accel_z = np.random.normal(
+            profile['accel_mean']['z'],
+            profile['accel_std']['z'],
+            num_samples
+        )
+        
+        # Generate gyroscope data (Sxg, Lyg, Dzg)
+        gyro_x = np.random.normal(
+            profile['gyro_mean']['x'],
+            profile['gyro_std']['x'],
+            num_samples
+        )
+        gyro_y = np.random.normal(
+            profile['gyro_mean']['y'],
+            profile['gyro_std']['y'],
+            num_samples
+        )
+        gyro_z = np.random.normal(
+            profile['gyro_mean']['z'],
+            profile['gyro_std']['z'],
+            num_samples
+        )
+        
+        return {
+            'Fxa': accel_x,
+            'Mya': accel_y,
+            'Rza': accel_z,
+            'Sxg': gyro_x,
+            'Lyg': gyro_y,
+            'Dzg': gyro_z
+        }
+    
+    def generate_dataset(
+        self,
+        num_days: int = 1,
+        start_date: Optional[datetime] = None,
+        sampling_interval_minutes: int = 1,
+        sequence_type: str = 'probabilistic',
+        template: str = 'typical',
+        animal_id: Optional[str] = None
+    ) -> pd.DataFrame:
+        """
+        Generate a complete synthetic dataset with circadian patterns.
+        
+        Args:
+            num_days: Number of days to generate
+            start_date: Starting date/time (default: now)
+            sampling_interval_minutes: Data sampling interval (default: 1 minute)
+            sequence_type: 'probabilistic' or 'template'
+            template: Template name if using template-based generation
+            animal_id: Animal identifier (optional)
+        
+        Returns:
+            DataFrame with complete synthetic sensor data
+        """
+        if start_date is None:
+            start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        all_data = []
+        
+        for day in range(num_days):
+            current_date = start_date + timedelta(days=day)
+            
+            # Generate daily behavior sequence
+            if sequence_type == 'probabilistic':
+                sequence = self.generate_probabilistic_sequence()
+            else:
+                sequence = self.generate_daily_sequence(template=template)
+            
+            # Generate data for each behavior segment
+            for start_min, end_min, behavior in sequence:
+                duration_minutes = end_min - start_min
+                num_samples = duration_minutes // sampling_interval_minutes
+                
+                if num_samples == 0:
+                    continue
+                
+                # Generate timestamps
+                timestamps = [
+                    current_date + timedelta(minutes=start_min + i * sampling_interval_minutes)
+                    for i in range(num_samples)
+                ]
+                
+                # Generate sensor data
+                sensor_data = self.generate_sensor_data(behavior, num_samples)
+                
+                # Generate temperature with circadian rhythm
+                hours = np.array([
+                    (start_min + i * sampling_interval_minutes) / 60
+                    for i in range(num_samples)
+                ])
+                temperatures = np.array([
+                    self.calculate_circadian_temperature(h) for h in hours
+                ])
+                
+                # Compile segment data
+                for i in range(num_samples):
+                    row = {
+                        'timestamp': timestamps[i],
+                        'temperature': temperatures[i],
+                        'Fxa': sensor_data['Fxa'][i],
+                        'Mya': sensor_data['Mya'][i],
+                        'Rza': sensor_data['Rza'][i],
+                        'Sxg': sensor_data['Sxg'][i],
+                        'Lyg': sensor_data['Lyg'][i],
+                        'Dzg': sensor_data['Dzg'][i],
+                        'behavior': behavior
+                    }
+                    
+                    if animal_id is not None:
+                        row['animal_id'] = animal_id
+                    
+                    all_data.append(row)
+        
+        # Create DataFrame
+        df = pd.DataFrame(all_data)
+        
+        # Reorder columns
+        columns = ['timestamp', 'temperature', 'Fxa', 'Mya', 'Rza', 'Sxg', 'Lyg', 'Dzg', 'behavior']
+        if animal_id is not None:
+            columns.insert(0, 'animal_id')
+        
+        df = df[columns]
+        
+        return df
+    
+    def set_circadian_parameters(
+        self,
+        base_temp: Optional[float] = None,
+        amplitude: Optional[float] = None,
+        acrophase: Optional[float] = None
     ):
         """
-        Export DataFrame to CSV file.
+        Update circadian rhythm parameters.
         
-        Parameters
-        ----------
-        df : pd.DataFrame
-            DataFrame to export
-        filepath : str
-            Output file path
-        include_metadata : bool, optional
-            Whether to include metadata as comments (default: True)
+        Args:
+            base_temp: Base body temperature (~38.5°C)
+            amplitude: Temperature variation amplitude (0.5-1.0°C)
+            acrophase: Hour of peak temperature (typically 14-18h)
         """
-        # Ensure directory exists
-        os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else '.', exist_ok=True)
-        
-        if include_metadata and hasattr(df, 'attrs') and df.attrs:
-            # Write metadata as comments
-            with open(filepath, 'w') as f:
-                f.write("# Synthetic Sensor Data\n")
-                for key, value in df.attrs.items():
-                    f.write(f"# {key}: {value}\n")
-                f.write("\n")
-            
-            # Append data
-            df.to_csv(filepath, mode='a', index=False, date_format='%Y-%m-%d %H:%M:%S')
-        else:
-            df.to_csv(filepath, index=False, date_format='%Y-%m-%d %H:%M:%S')
+        if base_temp is not None:
+            self.base_temp = base_temp
+        if amplitude is not None:
+            self.temp_amplitude = amplitude
+        if acrophase is not None:
+            self.acrophase = acrophase
+
+
+# Convenience function
+def generate_synthetic_data(
+    num_days: int = 1,
+    animal_id: Optional[str] = None,
+    template: str = 'typical',
+    random_seed: Optional[int] = None
+) -> pd.DataFrame:
+    """
+    Quick function to generate synthetic data.
+    
+    Args:
+        num_days: Number of days to generate
+        animal_id: Animal identifier
+        template: Sequence template to use
+        random_seed: Random seed for reproducibility
+    
+    Returns:
+        DataFrame with synthetic sensor data
+    """
+    generator = SyntheticDataGenerator(random_seed=random_seed)
+    return generator.generate_dataset(
+        num_days=num_days,
+        animal_id=animal_id,
+        sequence_type='probabilistic',
+        template=template
+    )

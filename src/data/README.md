@@ -1,59 +1,71 @@
-# Synthetic Data Generator
+# Data Module
 
-Generate realistic synthetic sensor data for animal behavior monitoring.
+This module contains tools for synthetic data generation with realistic circadian rhythms and daily activity patterns.
+
+## Contents
+
+- **`synthetic_generator.py`**: Main synthetic data generator with circadian rhythm modeling
 
 ## Quick Start
 
 ```python
-from src.data import SyntheticDataGenerator
+from src.data.synthetic_generator import SyntheticDataGenerator
 
-# Initialize generator
-generator = SyntheticDataGenerator()
+# Create generator
+generator = SyntheticDataGenerator(random_seed=42)
 
-# Generate single behavior
-df = generator.generate(
-    behavior='walking',
-    duration_minutes=30,
-    start_time='2024-01-01 08:00',
-    noise_level=0.1,
-    seed=42
+# Generate 3 days of synthetic data
+df = generator.generate_dataset(
+    num_days=3,
+    animal_id='COW_001',
+    sequence_type='probabilistic'
 )
 
-# Generate behavior sequence
-df_sequence = generator.generate_sequence([
-    {'behavior': 'lying', 'duration': 120},
-    {'behavior': 'standing', 'duration': 10},
-    {'behavior': 'walking', 'duration': 30}
-], start_time='2024-01-01 06:00', seed=42)
-
-# Export to CSV
-generator.export_to_csv(df, 'output/walking_data.csv')
+print(df.head())
 ```
-
-## Available Behaviors
-
-- `lying` - Animal lying down, minimal movement
-- `standing` - Animal standing still
-- `walking` - Animal walking with rhythmic gait
-- `ruminating` - Animal chewing cud with rhythmic jaw movement
-- `feeding` - Animal eating with head down
-- `resting` - Animal resting quietly
-
-## Sensor Channels
-
-- `temp` - Body temperature (°C)
-- `Fxa` - Forward-backward acceleration (m/s²)
-- `Mya` - Lateral acceleration (m/s²)
-- `Rza` - Vertical acceleration (m/s²)
-- `Sxg` - Roll angular velocity (rad/s)
-- `Lyg` - Pitch angular velocity (rad/s)
-- `Dzg` - Yaw angular velocity (rad/s)
 
 ## Features
 
-- **Realistic Parameters**: Based on physical constraints and animal physiology
-- **Gaussian Noise**: Configurable signal-to-noise ratio
-- **Frequency Components**: Rhythmic behaviors include sine wave patterns
-- **Smooth Transitions**: Sigmoid interpolation between behaviors
-- **Reproducible**: Seed-based random generation
-- **CSV Export**: ISO timestamp format with metadata
+- **Circadian Temperature Modeling**: Sinusoidal 24-hour temperature variation
+- **Time-of-Day Activity Patterns**: Behavior distributions that change throughout the day
+- **Multiple Sequence Templates**: Typical, high-activity, and low-activity day templates
+- **Probabilistic Generation**: Dynamic behavior sampling based on time and transitions
+- **Realistic Sensor Data**: Accelerometer and gyroscope readings for each behavior
+- **Multi-Day Generation**: Consistent patterns across multiple days
+
+## Output Format
+
+Generated datasets include the following columns:
+
+| Column      | Description                                    |
+|-------------|------------------------------------------------|
+| timestamp   | Date and time of measurement                   |
+| temperature | Body temperature (°C) with circadian rhythm    |
+| Fxa         | Acceleration X-axis (forward-backward)         |
+| Mya         | Acceleration Y-axis (lateral)                  |
+| Rza         | Acceleration Z-axis (vertical)                 |
+| Sxg         | Gyroscope X-axis (roll)                        |
+| Lyg         | Gyroscope Y-axis (pitch)                       |
+| Dzg         | Gyroscope Z-axis (yaw)                         |
+| behavior    | Current behavior label                         |
+| animal_id   | Animal identifier (if specified)               |
+
+## Configuration
+
+Behavior patterns and schedules are defined in `config/behavior_patterns.py`:
+
+- Time-of-day activity schedules (5 time periods)
+- Daily sequence templates (3 templates)
+- Behavior transition probabilities
+- Duration constraints
+
+## Documentation
+
+See `docs/circadian_rhythm_implementation.md` for detailed documentation.
+
+## Examples
+
+Run the demo:
+```bash
+python examples/demo_circadian_generation.py
+```
