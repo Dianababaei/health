@@ -282,14 +282,59 @@ If you encounter issues:
 
 ---
 
+## Generating Synthetic Datasets
+
+The project includes a synthetic data generator for training and testing machine learning models.
+
+### Quick Start
+
+**Linux/macOS:**
+```bash
+./generate_datasets.sh
+```
+
+**Windows:**
+```cmd
+generate_datasets.bat
+```
+
+**Manual:**
+```bash
+cd src/data
+python dataset_generator.py
+```
+
+### Generated Files
+
+The generator creates:
+- `data/synthetic/train.csv` - Training set (70%)
+- `data/synthetic/val.csv` - Validation set (15%)
+- `data/synthetic/test.csv` - Test set (15%)
+- `data/synthetic/multiday_1.csv` through `multiday_5.csv` - Multi-day datasets
+- `data/synthetic/dataset_metadata.json` - Dataset documentation
+
+### Dataset Features
+
+- **6,600+ minutes** of balanced behavior data (1,100+ per behavior)
+- **6 behavior classes**: lying, standing, walking, ruminating, feeding, stress
+- **Realistic transitions** between behaviors
+- **Circadian temperature patterns** (lower at night, higher during day)
+- **Multi-day sequences** with daily activity schedules (7-14 days each)
+- **Stratified splits** maintaining behavior distribution
+
+For detailed information, see [data/synthetic/README.md](data/synthetic/README.md).
+
+---
+
 ## Next Steps
 
 Once your environment is set up:
 
 1. Explore the sensor data description in [description.md](description.md)
-2. Review the configuration management system (coming next)
-3. Begin implementing the data processing pipeline
-4. Develop the analysis layers (behavior, physiology, health intelligence)
+2. Generate synthetic datasets for model development
+3. Review the configuration management system
+4. Begin implementing the data processing pipeline
+5. Develop the analysis layers (behavior, physiology, health intelligence)
 
 ---
 
@@ -298,10 +343,24 @@ Once your environment is set up:
 ```
 artemis-health/
 ├── .venv/                  # Virtual environment (not in version control)
-├── description.md          # Project and sensor data overview
-├── requirements.txt        # Python dependencies
-├── .gitignore             # Git ignore rules
-└── README.md              # This file
+├── config/                 # Configuration files
+├── data/
+│   └── synthetic/         # Generated synthetic datasets
+├── src/
+│   ├── data/              # Data generation and processing
+│   │   ├── synthetic_generator.py    # Core data generator
+│   │   └── dataset_generator.py      # Dataset creation script
+│   ├── layer1/            # Physical behavior layer
+│   ├── layer2/            # Physiological analysis layer
+│   ├── layer3/            # Health intelligence layer
+│   └── utils/             # Utility modules
+├── tests/                 # Test files
+├── notebooks/             # Jupyter notebooks for analysis
+├── description.md         # Project and sensor data overview
+├── requirements.txt       # Python dependencies
+├── generate_datasets.sh   # Dataset generation script (Unix)
+├── generate_datasets.bat  # Dataset generation script (Windows)
+└── README.md             # This file
 ```
 
 ---
