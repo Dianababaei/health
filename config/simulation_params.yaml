@@ -1,0 +1,306 @@
+# ============================================================
+# Cattle Behavioral State Simulation - Configuration
+# ============================================================
+# This configuration file defines all parameters for the behavioral
+# state simulation engine. All values are based on cattle research
+# literature and can be adjusted for different scenarios.
+#
+# To use this configuration programmatically:
+#   import yaml
+#   with open('config/simulation_params.yaml') as f:
+#       config = yaml.safe_load(f)
+# ============================================================
+
+# ------------------------------------------------------------
+# Sensor Noise Parameters
+# ------------------------------------------------------------
+# Defines realistic noise levels for each sensor type based on
+# typical sensor specifications and measurement uncertainty
+noise:
+  temperature_std: 0.1          # Standard deviation for temperature noise (°C)
+  accelerometer_std: 0.05       # Standard deviation for accelerometer noise (g)
+  gyroscope_std: 2.0            # Standard deviation for gyroscope noise (°/s)
+  ambient_temperature_variation: 0.05  # Additional environmental variation (°C)
+  drift_rate: 0.001             # Sensor drift rate over time
+
+# ------------------------------------------------------------
+# Behavioral State Sensor Signatures
+# ------------------------------------------------------------
+# Each behavioral state has characteristic sensor ranges.
+# Format: [min, max, mean, std] for each parameter.
+# All accelerometer values in g, gyroscope in °/s, temperature in °C
+
+behavioral_signatures:
+  lying:
+    temperature: [38.0, 39.2, 38.5, 0.2]
+    fxa: [-0.2, 0.2, 0.0, 0.05]      # Minimal forward movement
+    mya: [-0.15, 0.15, 0.0, 0.04]    # Minimal lateral movement
+    rza: [-1.0, -0.5, -0.8, 0.1]     # Negative = lying orientation
+    sxg: [-5.0, 5.0, 0.0, 2.0]       # Low roll velocity
+    lyg: [-5.0, 5.0, 0.0, 2.0]       # Low pitch velocity
+    dzg: [-3.0, 3.0, 0.0, 1.5]       # Low yaw velocity
+    rhythmic_frequency: null         # No rhythmic pattern
+    rhythmic_amplitude_scale: null
+
+  standing:
+    temperature: [38.2, 39.3, 38.6, 0.2]
+    fxa: [-0.15, 0.15, 0.0, 0.04]
+    mya: [-0.15, 0.15, 0.0, 0.04]
+    rza: [0.7, 1.0, 0.9, 0.08]       # Upright orientation
+    sxg: [-8.0, 8.0, 0.0, 3.0]
+    lyg: [-8.0, 8.0, 0.0, 3.0]
+    dzg: [-6.0, 6.0, 0.0, 2.5]
+    rhythmic_frequency: null
+    rhythmic_amplitude_scale: null
+
+  walking:
+    temperature: [38.3, 39.4, 38.7, 0.2]
+    fxa: [0.1, 0.8, 0.4, 0.15]       # Forward acceleration
+    mya: [-0.3, 0.3, 0.0, 0.1]       # Lateral sway
+    rza: [0.7, 0.95, 0.85, 0.08]     # Mostly upright
+    sxg: [-15.0, 15.0, 0.0, 6.0]     # Increased roll
+    lyg: [-12.0, 12.0, 0.0, 5.0]     # Head bobbing
+    dzg: [-10.0, 10.0, 0.0, 4.0]     # Turning movements
+    rhythmic_frequency: 1.0          # ~1 Hz gait frequency
+    rhythmic_amplitude_scale: 1.5
+
+  ruminating:
+    temperature: [38.0, 39.2, 38.5, 0.2]
+    fxa: [-0.15, 0.15, 0.0, 0.04]
+    mya: [-0.25, 0.25, 0.0, 0.12]    # Jaw movements (lateral)
+    rza: [-0.3, 0.95, 0.5, 0.3]      # Can be lying or standing
+    sxg: [-8.0, 8.0, 0.0, 3.0]
+    lyg: [-15.0, 15.0, 0.0, 6.0]     # Head bobbing from chewing
+    dzg: [-5.0, 5.0, 0.0, 2.0]
+    rhythmic_frequency: 0.83         # ~50 cycles/min = 0.83 Hz
+    rhythmic_amplitude_scale: 2.0    # Strong rhythmic pattern
+
+  feeding:
+    temperature: [38.2, 39.3, 38.6, 0.2]
+    fxa: [0.0, 0.4, 0.2, 0.1]        # Moderate forward movement
+    mya: [-0.2, 0.2, 0.0, 0.08]
+    rza: [0.4, 0.85, 0.65, 0.12]     # Head down position
+    sxg: [-10.0, 10.0, 0.0, 4.0]
+    lyg: [-25.0, -5.0, -15.0, 5.0]   # Negative pitch (head down)
+    dzg: [-8.0, 8.0, 0.0, 3.5]       # Side-to-side while eating
+    rhythmic_frequency: 0.5          # Slower than walking
+    rhythmic_amplitude_scale: 0.8
+
+# ------------------------------------------------------------
+# State Transition Probabilities (per hour)
+# ------------------------------------------------------------
+# Base transition probabilities between behavioral states.
+# These are modulated by time-of-day preferences.
+# Each row must sum to approximately 1.0
+
+transition_matrix:
+  lying:
+    lying: 0.85          # Stay lying
+    standing: 0.10       # Get up
+    walking: 0.02        # Rare: get up and walk immediately
+    ruminating: 0.03     # Start ruminating while lying
+    feeding: 0.00        # Can't feed while lying
+
+  standing:
+    lying: 0.15          # Lie down
+    standing: 0.50       # Stay standing
+    walking: 0.25        # Start walking
+    ruminating: 0.05     # Start ruminating while standing
+    feeding: 0.05        # Start feeding
+
+  walking:
+    lying: 0.05          # Lie down after walking
+    standing: 0.30       # Stop and stand
+    walking: 0.25        # Keep walking
+    ruminating: 0.00     # Can't ruminate while walking
+    feeding: 0.40        # Walk to food and start eating
+
+  ruminating:
+    lying: 0.20          # Lie down while ruminating
+    standing: 0.30       # Stand up or keep standing
+    walking: 0.05        # Stop ruminating and walk
+    ruminating: 0.40     # Continue ruminating
+    feeding: 0.05        # Stop ruminating and eat
+
+  feeding:
+    lying: 0.10          # Finish eating and lie down
+    standing: 0.20       # Finish eating and stand
+    walking: 0.15        # Walk to new location
+    ruminating: 0.25     # Start ruminating after eating
+    feeding: 0.30        # Continue feeding
+
+# ------------------------------------------------------------
+# State Duration Distributions (minutes)
+# ------------------------------------------------------------
+# Realistic duration ranges for each behavioral state.
+# Format: [min_minutes, max_minutes, mean_minutes]
+
+state_durations:
+  lying: [30.0, 120.0, 60.0]        # 30-120 min, avg 60 min
+  standing: [5.0, 30.0, 15.0]       # 5-30 min, avg 15 min
+  walking: [2.0, 15.0, 5.0]         # 2-15 min, avg 5 min
+  ruminating: [20.0, 60.0, 40.0]    # 20-60 min, avg 40 min
+  feeding: [15.0, 45.0, 25.0]       # 15-45 min, avg 25 min
+
+# ------------------------------------------------------------
+# Temporal Pattern Parameters
+# ------------------------------------------------------------
+# Time-of-day effects on behavior and physiology
+
+temporal:
+  # Smooth transition duration between states (seconds)
+  transition_smoothing_time: 60.0
+  
+  # Night time definition (hours)
+  night_start: 22.0
+  night_end: 6.0
+  
+  # Feeding time windows (hours)
+  morning_feeding_start: 6.0
+  morning_feeding_end: 10.0
+  evening_feeding_start: 16.0
+  evening_feeding_end: 20.0
+  
+  # Circadian temperature variation amplitude (°C)
+  circadian_temperature_amplitude: 0.4
+  circadian_temperature_peak_hour: 16.0   # Peak body temp at 4 PM
+  
+  # Activity preferences by time period
+  night_lying_preference: 2.5       # 2.5x more likely to lie at night
+  day_lying_preference: 0.3         # 0.3x less likely during day
+  feeding_peak_multiplier: 2.0      # 2x more likely during feeding times
+  night_activity_reduction: 0.4     # 40% of normal activity at night
+
+# ------------------------------------------------------------
+# Individual Animal Variation Ranges
+# ------------------------------------------------------------
+# Parameters for generating realistic individual differences
+
+individual_variation:
+  # Baseline body temperature range (°C)
+  baseline_temperature_min: 38.0
+  baseline_temperature_max: 39.0
+  
+  # Activity level multiplier range
+  activity_multiplier_min: 0.7      # 70% of standard activity
+  activity_multiplier_max: 1.3      # 130% of standard activity
+  
+  # Body size factor range
+  body_size_factor_min: 0.85        # 85% of standard size
+  body_size_factor_max: 1.15        # 115% of standard size
+  
+  # Age category distribution (probabilities)
+  age_distribution:
+    calf: 0.10
+    juvenile: 0.15
+    adult: 0.60
+    senior: 0.15
+  
+  # Health modifier ranges (for sick animals)
+  fever_offset_range: [0.5, 2.0]    # +0.5 to +2.0°C above normal
+  lethargy_factor_range: [0.3, 0.7] # 30-70% of normal activity
+
+# ------------------------------------------------------------
+# Simulation Engine Configuration
+# ------------------------------------------------------------
+
+simulation:
+  time_step_minutes: 1.0            # Simulation time step (minutes)
+  include_validation: true          # Validate sensor values
+  include_noise: true               # Add sensor noise
+  include_temporal_effects: true    # Apply circadian rhythms
+  include_rhythmic_patterns: true   # Add rhythmic variations
+  
+  # Default simulation parameters
+  default_duration_hours: 24.0      # Default simulation length
+  default_animal_id: "sim_animal_001"
+  
+  # Validation ranges (absolute limits)
+  validation_limits:
+    temperature_min: 36.0           # Minimum viable temperature (°C)
+    temperature_max: 42.0           # Maximum viable temperature (°C)
+    accelerometer_min: -2.0         # Minimum acceleration (g)
+    accelerometer_max: 2.0          # Maximum acceleration (g)
+    gyroscope_min: -50.0            # Minimum angular velocity (°/s)
+    gyroscope_max: 50.0             # Maximum angular velocity (°/s)
+
+# ------------------------------------------------------------
+# Data Export Configuration
+# ------------------------------------------------------------
+
+export:
+  # CSV export settings
+  include_metadata_by_default: true # Include true_state, is_transitioning, etc.
+  timestamp_format: "%Y-%m-%d %H:%M:%S"
+  
+  # Output columns (in order)
+  sensor_columns:
+    - timestamp
+    - animal_id
+    - temperature
+    - fxa
+    - mya
+    - rza
+    - sxg
+    - lyg
+    - dzg
+  
+  metadata_columns:
+    - true_state
+    - is_transitioning
+    - time_in_state
+
+# ------------------------------------------------------------
+# Literature References
+# ------------------------------------------------------------
+# Documentation of sources for parameter values
+
+references:
+  - title: "Accelerometer-based classification of cattle behavior"
+    note: "Posture detection thresholds (Rza < -0.5g for lying, > 0.7g for standing)"
+  
+  - title: "Rumination patterns in dairy cattle"
+    note: "Rumination frequency 40-60 cycles/min (~0.83 Hz)"
+  
+  - title: "Circadian rhythms in cattle body temperature"
+    note: "Temperature variation ~0.3-0.5°C, peak in afternoon"
+  
+  - title: "Time budgets of beef cattle behavior"
+    note: "State duration distributions and transition probabilities"
+  
+  - title: "Cattle activity patterns and diurnal rhythms"
+    note: "Night-time lying preference, feeding peaks morning/evening"
+  
+  - title: "Sensor specifications for livestock monitoring"
+    note: "Typical sensor noise levels and accuracy specifications"
+
+# ------------------------------------------------------------
+# Usage Examples
+# ------------------------------------------------------------
+# Example code snippets for common use cases (as comments)
+
+# Basic simulation:
+#   from src.simulation import SimulationEngine
+#   engine = SimulationEngine(animal_id="cow_001", seed=42)
+#   data = engine.run_simulation(duration_hours=24)
+#   data.to_csv('output.csv', index=False)
+
+# Multi-day simulation:
+#   data = engine.run_multi_day_simulation(num_days=7)
+
+# Custom animal profile:
+#   from src.simulation import AnimalProfile
+#   profile = AnimalProfile(
+#       animal_id="cow_002",
+#       baseline_temperature=38.7,
+#       activity_multiplier=1.2,
+#       fever_offset=1.0  # Simulate sick animal
+#   )
+#   engine = SimulationEngine(animal_profile=profile)
+#   data = engine.run_simulation(duration_hours=48)
+
+# Load this config:
+#   import yaml
+#   with open('config/simulation_params.yaml') as f:
+#       config = yaml.safe_load(f)
+#   # Then use config values to customize SimulationEngine parameters
