@@ -1,247 +1,273 @@
 # Data Processing Module
 
-This module provides comprehensive data ingestion capabilities for cattle sensor data with support for batch and incremental loading modes, extensive validation, and error handling.
+This module provides comprehensive data validation and processing utilities for the Artemis Health livestock monitoring system.
 
 ## Features
 
-- **Batch Loading Mode**: Load entire CSV files for historical analysis
-- **Incremental Loading Mode**: Monitor files for new data (simulates real-time ingestion)
-- **Flexible Timestamp Parsing**: Supports ISO 8601, Unix timestamps (seconds/milliseconds), and custom formats
-- **CSV Auto-Detection**: Automatically detects delimiters (comma, semicolon, tab) and file encoding
-- **Comprehensive Validation**: 
-  - Required column checks
-  - Data type validation
-  - Sensor value range validation
-  - Timestamp chronology validation
-- **Error Handling**: Graceful handling with detailed error reporting and logging
-- **File Position Tracking**: Resume incremental reads from last position
+### Data Validation
 
-## Module Structure
+The validation module provides robust validation for sensor data with:
 
-```
-data_processing/
-├── __init__.py
-├── ingestion.py     # Main ingestion module
-├── parsers.py       # Timestamp and CSV parsing utilities
-├── validators.py    # Data validation functions
-└── README.md        # This file
-```
+- **Completeness Check**: Verifies all 7 required parameters are present (Temperature, Fxa, Mya, Rza, Sxg, Lyg, Dzg)
+- **Data Type Validation**: Ensures proper data types with automatic conversion and error handling
+- **Range Validation**: Validates sensor values against expected ranges based on cattle physiology and sensor specifications
+- **Timestamp Continuity**: Detects gaps >5 minutes between consecutive readings
+- **Out-of-Range Detection**: Identifies critical conditions (hypothermia, severe fever, extreme accelerations)
+- **Severity Classification**: Issues are categorized as ERROR, WARNING, or INFO
+- **Detailed Reporting**: Comprehensive validation reports with statistics and issue tracking
 
-## Quick Start
+## Usage
 
-### Batch Loading
+### Basic Validation
 
 ```python
-from data_processing.ingestion import DataIngestionModule
+import pandas as pd
+from src.data_processing import validate_sensor_data
 
-# Initialize module
-ingestion = DataIngestionModule(log_dir='logs')
+# Load your sensor data
+data = pd.read_csv('sensor_data.csv')
 
-# Load entire CSV file
-df, summary = ingestion.load_batch('data/simulated/sensor_data.csv')
+# Validate the data
+result = validate_sensor_data(data)
 
-print(f"Loaded {len(df)} rows")
-print(f"Valid rows: {summary.valid_rows}")
-print(f"Errors: {len(summary.errors)}")
+# Access results
+clean_data = result['clean_data']
+flagged_data = result['flagged_data']
+report = result['report']
+summary = result['summary']
+
+print(f"Clean records: {summary['clean_records']}")
+print(f"Flagged records: {summary['flagged_records']}")
+print(f"Error count: {summary['error_count']}")
+print(f"Warning count: {summary['warning_count']}")
 ```
 
-### Incremental Loading
+### Advanced Usage with Custom Settings
 
 ```python
-# First read
-df1, summary1 = ingestion.load_incremental('data/simulated/sensor_data.csv')
-print(f"First read: {len(df1)} rows")
+from src.data_processing import DataValidator
+import logging
 
-# Later, after new data is appended
-df2, summary2 = ingestion.load_incremental('data/simulated/sensor_data.csv')
-print(f"New data: {len(df2)} rows")
-```
-
-### File Monitoring
-
-```python
-def process_new_data(df, summary):
-    """Callback function for new data."""
-    print(f"Received {len(df)} new rows")
-    # Process data here...
-
-# Monitor file every 60 seconds
-ingestion.monitor_file(
-    'data/simulated/sensor_data.csv',
-    interval_seconds=60,
-    callback=process_new_data
+# Create validator with custom settings
+validator = DataValidator(
+    gap_threshold_minutes=10,  # Allow larger gaps
+    log_level=logging.DEBUG    # More verbose logging
 )
+
+# Perform validation
+clean_data, flagged_data, report = validator.validate(data)
+
+# Access detailed report
+print(report.get_summary())
+
+# Convert issues to DataFrame for analysis
+issues_df = report.to_dataframe()
+issues_df.to_csv('validation_issues.csv', index=False)
+
+# Get report as dictionary
+report_dict = report.to_dict()
 ```
 
-## CSV Format
+### Accessing Validation Issues
 
-### Required Columns
+```python
+# Iterate through issues
+for issue in report.issues:
+    print(f"{issue.severity.value}: {issue.message}")
+    if issue.row_index is not None:
+        print(f"  Row: {issue.row_index}")
+    if issue.column:
+        print(f"  Column: {issue.column}")
+    if issue.value is not None:
+        print(f"  Value: {issue.value}")
 
-- `timestamp`: ISO 8601 format or Unix timestamp
-- `temperature`: Float (°C)
-- `fxa`, `mya`, `rza`: Float (m/s² or g-units) - accelerometer data
-- `sxg`, `lyg`, `dzg`: Float (°/s or rad/s) - gyroscope data
+# Filter by severity
+errors = [i for i in report.issues if i.severity == ValidationSeverity.ERROR]
+warnings = [i for i in report.issues if i.severity == ValidationSeverity.WARNING]
 
-### Optional Columns
-
-- `cow_id`: String/Integer (for multi-animal systems)
-- `sensor_id`: String (for sensor identification)
-- `state`: String (ground truth labels for training data)
-
-### Example CSV
-
-```csv
-timestamp,temperature,fxa,mya,rza,sxg,lyg,dzg
-2024-01-01T00:00:00,38.5,-0.02,0.01,-0.85,2.1,-1.5,0.8
-2024-01-01T00:01:00,38.5,-0.03,0.02,-0.82,2.3,-1.4,0.9
+# Filter by category
+range_issues = [i for i in report.issues if i.category == 'range']
+continuity_issues = [i for i in report.issues if i.category == 'timestamp_continuity']
 ```
 
-## Validation
+## Validation Rules
 
-The module performs comprehensive validation:
+### Data Completeness
 
-### Column Validation
-- Checks all 7 required sensor columns are present
-- Validates timestamp column exists
+- **Required Columns**: timestamp, temperature, fxa, mya, rza, sxg, lyg, dzg
+- **Missing Columns**: ERROR severity
+- **Missing Values**: ERROR severity
 
-### Data Type Validation
-- Converts sensor values to numeric types
-- Identifies and reports non-numeric values
-- Marks invalid rows without crashing
+### Data Types
+
+- **Timestamp**: Must be valid datetime format, not in future (ERROR if invalid)
+- **Numeric Fields**: Must be convertible to float (ERROR if invalid)
 
 ### Range Validation
-- Temperature: 35-42°C
-- Accelerometer (fxa, mya): -5 to 5 g
-- Accelerometer (rza): -2 to 2 g
-- Gyroscope (sxg, lyg, dzg): -200 to 200 °/s
 
-### Timestamp Validation
-- Verifies chronological order
-- Detects duplicate timestamps
-- Checks for irregular time intervals (expected: ~60 seconds)
-- Validates timestamp ranges (not in distant past/future)
+#### Temperature
+- **Normal Range**: 35.0-42.0°C (WARNING if outside)
+- **Critical Low**: <35.0°C - Hypothermia risk (ERROR)
+- **Critical High**: >42.0°C - Severe fever (ERROR)
 
-## Error Handling
+#### Accelerations (Fxa, Mya, Rza)
+- **Typical Range**: -2.0 to +2.0g (WARNING if outside)
+- **Extreme Threshold**: >5g - Physically impossible (ERROR)
 
-Errors are categorized and logged:
+#### Angular Velocities (Sxg, Lyg, Dzg)
+- **Sensor Range**: -250 to +250 deg/s (WARNING if outside)
 
-- **File-Level Errors**: File not found, empty file, encoding errors
-- **Column Errors**: Missing required columns
-- **Type Errors**: Non-numeric values in sensor columns
-- **Range Errors**: Values outside acceptable ranges
-- **Timestamp Errors**: Unparseable timestamps, non-chronological order
+### Timestamp Continuity
 
-Example error report:
+- **Expected Interval**: 1 minute
+- **Gap Threshold**: 5 minutes (configurable)
+- **Gaps Detected**: WARNING severity
+- **Duplicate Timestamps**: ERROR severity
 
+## Validation Report Structure
+
+### Summary Statistics
+
+```json
+{
+  "total_records": 1000,
+  "clean_records": 950,
+  "flagged_records": 50,
+  "total_issues": 75,
+  "error_count": 5,
+  "warning_count": 68,
+  "info_count": 2,
+  "duration_seconds": 0.234,
+  "issues_by_category": {
+    "completeness": 2,
+    "range": 65,
+    "timestamp_continuity": 5,
+    "critical_out_of_range": 3
+  }
+}
 ```
-============================================================
-Data Ingestion Summary
-============================================================
-File: data/sample.csv
-Duration: 0.23 seconds
-Total rows read: 100
-Valid rows: 92
-Skipped rows: 8
-Errors: 5
-Warnings: 3
 
-Top Errors (first 5):
-  - [invalid_type] Non-numeric value in column 'fxa' (row 12)
-  - [value_out_of_range] Value 999.90 for 'temperature' outside valid range [35.0, 42.0] (row 15)
-  ...
-============================================================
+### Individual Issue Structure
+
+```json
+{
+  "severity": "WARNING",
+  "category": "range",
+  "message": "Temperature outside normal range (35.0-42.0°C)",
+  "row_index": 123,
+  "column": "temperature",
+  "value": 42.3,
+  "timestamp": "2024-01-15T10:30:00"
+}
 ```
 
-## Advanced Usage
-
-### Custom Validation
+## Integration with Pipeline
 
 ```python
-# Disable automatic validation
-ingestion = DataIngestionModule(validate_data=False)
-df, summary = ingestion.load_batch('data/sample.csv')
+import pandas as pd
+from src.data_processing import validate_sensor_data
 
-# Perform custom validation
-from data_processing.validators import DataValidator
-validator = DataValidator()
-df_clean, validation_summary = validator.validate_dataframe(df)
-```
+def process_sensor_data(file_path):
+    """Complete data processing pipeline with validation."""
+    
+    # Load data
+    raw_data = pd.read_csv(file_path)
+    print(f"Loaded {len(raw_data)} records")
+    
+    # Validate
+    result = validate_sensor_data(raw_data)
+    
+    # Log validation results
+    summary = result['summary']
+    print(f"\nValidation Results:")
+    print(f"  Clean: {summary['clean_records']}")
+    print(f"  Flagged: {summary['flagged_records']}")
+    print(f"  Errors: {summary['error_count']}")
+    print(f"  Warnings: {summary['warning_count']}")
+    
+    # Export flagged data for review
+    if len(result['flagged_data']) > 0:
+        result['flagged_data'].to_csv('flagged_records.csv', index=False)
+        result['report'].to_dataframe().to_csv('validation_issues.csv', index=False)
+        print(f"\nFlagged records exported to 'flagged_records.csv'")
+        print(f"Validation issues exported to 'validation_issues.csv'")
+    
+    # Continue with clean data
+    clean_data = result['clean_data']
+    
+    # Further processing...
+    return clean_data
 
-### Chunked Loading (Large Files)
-
-```python
-# Process large files in chunks to save memory
-df, summary = ingestion.load_batch(
-    'data/large_file.csv',
-    chunk_size=10000  # Process 10,000 rows at a time
-)
-```
-
-### Export Summary Report
-
-```python
-df, summary = ingestion.load_batch('data/sample.csv')
-ingestion.export_summary(summary, 'reports/ingestion_summary.txt')
+# Use in pipeline
+processed_data = process_sensor_data('data/raw/sensor_data.csv')
 ```
 
 ## Testing
 
-Run the test suite:
+Run the comprehensive test suite:
 
 ```bash
-cd tests
-python test_ingestion.py
-```
+# Run all validation tests
+python -m pytest tests/test_validation.py -v
 
-Test fixtures are provided in `tests/fixtures/`:
-- `sample_valid.csv`: Valid sensor data
-- `sample_malformed.csv`: Data with various errors
-- `sample_edge_cases.csv`: Unix timestamps and optional columns
+# Run specific test class
+python -m pytest tests/test_validation.py::TestDataValidatorCompleteness -v
 
-## Integration with Simulation
-
-The module is designed to work seamlessly with the simulation engine:
-
-```python
-from simulation.engine import SimulationEngine
-from data_processing.ingestion import DataIngestionModule
-
-# Generate simulated data
-engine = SimulationEngine(random_seed=42)
-df = engine.generate_continuous_data(duration_hours=24)
-engine.export_to_csv(df, 'data/simulated/test_data.csv')
-
-# Ingest simulated data
-ingestion = DataIngestionModule()
-df_loaded, summary = ingestion.load_batch('data/simulated/test_data.csv')
-
-print(f"Generated {len(df)} rows, loaded {len(df_loaded)} rows")
+# Run with coverage
+python -m pytest tests/test_validation.py --cov=src.data_processing.validation
 ```
 
 ## Logging
 
-Logs are written to `logs/ingestion_errors.log` by default.
-
-Configure logging:
+The validation module uses Python's built-in logging. Configure as needed:
 
 ```python
-ingestion = DataIngestionModule(
-    log_dir='custom_logs',
-    log_file='custom_errors.log'
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('validation.log'),
+        logging.StreamHandler()
+    ]
 )
+
+# Now run validation
+result = validate_sensor_data(data)
 ```
 
 ## Performance
 
-- **Batch Loading**: Handles files with 90+ days of data (130,000+ rows)
-- **Incremental Loading**: Efficiently tracks file position for minimal overhead
-- **Memory Management**: Optional chunked processing for large files
-- **Validation Speed**: ~10,000-50,000 rows/second depending on validation complexity
+- **Validation Speed**: ~10,000-50,000 records/second (depends on data quality)
+- **Memory Usage**: Minimal overhead (creates single copy of input data)
+- **Batch Processing**: Supports datasets of any size
 
-## Next Steps
+## Best Practices
 
-After ingestion, data is ready for:
-- Layer 1 processing (behavior detection)
-- Feature extraction
-- Model training
-- Real-time alert generation
+1. **Always validate data** before feeding into analysis or ML pipelines
+2. **Review flagged data** before discarding - some warnings may be valid edge cases
+3. **Save validation reports** for audit trails and quality monitoring
+4. **Adjust thresholds** based on your specific use case
+5. **Monitor validation metrics** over time to detect data quality trends
+
+## Troubleshooting
+
+### High Error Rate
+
+- Check data source formatting
+- Verify sensor calibration
+- Review timestamp generation logic
+
+### Many Warnings
+
+- Consider if ranges are too strict for your scenario
+- Check if sensor is properly mounted
+- Verify environmental conditions
+
+### Performance Issues
+
+- Process data in smaller batches
+- Consider parallel processing for very large datasets
+- Profile specific validation checks if needed
