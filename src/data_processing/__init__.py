@@ -1,22 +1,22 @@
 """
-Data processing module for cattle sensor data ingestion.
+Data Processing Module
 
-This module provides comprehensive data ingestion capabilities with support for
-batch and incremental loading modes, extensive validation, and error handling.
+This module provides data ingestion, validation, and preprocessing utilities
+for the Artemis Health livestock monitoring system.
 """
 
-from .ingestion import DataIngestionModule, IngestionSummary
-from .parsers import TimestampParser, CSVParser
-from .validators import DataValidator, ValidationSummary, ValidationError
+from .validation import (
+    DataValidator,
+    ValidationReport,
+    ValidationIssue,
+    ValidationSeverity,
+    validate_sensor_data
+)
 
 __all__ = [
-    'DataIngestionModule',
-    'IngestionSummary',
-    'TimestampParser',
-    'CSVParser',
     'DataValidator',
-    'ValidationSummary',
-    'ValidationError',
+    'ValidationReport',
+    'ValidationIssue',
+    'ValidationSeverity',
+    'validate_sensor_data'
 ]
-
-__version__ = '1.0.0'
