@@ -1,466 +1,504 @@
 """
-Simulation Engine Core
+Simulation engine for generating realistic cattle behavioral sensor data.
 
-Main orchestrator for the behavioral state simulation. This engine:
-- Manages time progression at 1-minute intervals
-- Coordinates state transitions through the transition model
-- Generates sensor values based on current state and animal profile
-- Applies noise and individual variation
-- Handles temporal patterns (circadian rhythms)
-- Validates generated data
-- Exports data to CSV/DataFrame formats
-
-Usage:
-    engine = SimulationEngine(animal_id="cow_001", seed=42)
-    data = engine.run_simulation(
-        duration_hours=24,
-        start_time=datetime(2024, 1, 1, 0, 0)
-    )
-    data.to_csv('simulated_data.csv', index=False)
+Integrates all behavioral state generators and manages state transitions
+to produce continuous, realistic sensor data streams.
 """
 
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import Optional, Dict, List, Tuple
 import numpy as np
 import pandas as pd
-import warnings
+from typing import Optional, List, Dict, Tuple
+from datetime import datetime, timedelta
 
-from .state_params import (
-    BehavioralState, 
-    AnimalProfile, 
-    create_default_profile,
-    validate_sensor_values
+from .states import (
+    SensorReading,
+    BehavioralStateGenerator,
+    LyingStateGenerator,
+    StandingStateGenerator,
+    WalkingStateGenerator,
+    RuminatingStateGenerator,
+    FeedingStateGenerator,
+    StressBehaviorOverlay,
 )
-from .transitions import StateTransitionModel, StateTransitionConfig
-from .noise import NoiseGenerator, NoiseParameters
-from .temporal import TemporalPatternManager
-
-
-@dataclass
-class SimulationConfig:
-    """Configuration for the simulation engine."""
-    time_step_minutes: float = 1.0  # Simulation time step
-    include_validation: bool = True  # Validate sensor values
-    include_noise: bool = True  # Add sensor noise
-    include_temporal_effects: bool = True  # Apply circadian rhythms
-    include_rhythmic_patterns: bool = True  # Add rhythmic variations
-    
-    # Optional: environmental parameters
-    ambient_temperature: Optional[float] = None  # Celsius
+from .transitions import (
+    BehaviorState,
+    StateTransitionManager,
+    TransitionValidator,
+)
 
 
 class SimulationEngine:
     """
     Main simulation engine for generating realistic cattle sensor data.
     
-    This engine orchestrates all components to generate minute-by-minute sensor
-    readings that accurately reflect cattle behavioral states and individual
-    characteristics.
+    Coordinates state generators, manages transitions, and produces
+    continuous sensor data streams with realistic behavioral patterns.
     """
     
-    def __init__(self,
-                 animal_id: str = "sim_animal_001",
-                 animal_profile: Optional[AnimalProfile] = None,
-                 transition_config: Optional[StateTransitionConfig] = None,
-                 noise_params: Optional[NoiseParameters] = None,
-                 sim_config: Optional[SimulationConfig] = None,
-                 seed: Optional[int] = None):
+    def __init__(
+        self,
+        baseline_temperature: float = 38.5,
+        sampling_rate: float = 1.0,
+        random_seed: Optional[int] = None
+    ):
         """
         Initialize the simulation engine.
         
         Args:
-            animal_id: Unique identifier for the simulated animal
-            animal_profile: Animal characteristics (auto-generated if None)
-            transition_config: State transition configuration
-            noise_params: Noise generation parameters
-            sim_config: Simulation configuration
-            seed: Random seed for reproducibility
+            baseline_temperature: Normal body temperature in °C (default: 38.5°C)
+            sampling_rate: Samples per minute (default: 1.0 for 1 sample/minute)
+            random_seed: Random seed for reproducibility (optional)
         """
-        self.animal_id = animal_id
-        self.seed = seed
-        self.rng = np.random.default_rng(seed)
+        if random_seed is not None:
+            np.random.seed(random_seed)
         
-        # Create or use provided animal profile
-        if animal_profile is None:
-            self.animal_profile = create_default_profile(animal_id, self.rng)
-        else:
-            self.animal_profile = animal_profile
+        self.baseline_temperature = baseline_temperature
+        self.sampling_rate = sampling_rate
         
-        # Initialize components
-        self.temporal_manager = TemporalPatternManager()
-        self.transition_model = StateTransitionModel(
-            config=transition_config,
-            temporal_manager=self.temporal_manager,
-            seed=self.rng.integers(0, 2**31) if seed else None
-        )
-        self.noise_generator = NoiseGenerator(
-            params=noise_params,
-            seed=self.rng.integers(0, 2**31) if seed else None
-        )
-        
-        # Configuration
-        self.config = sim_config or SimulationConfig()
-        
-        # Tracking
-        self.current_time: Optional[datetime] = None
-        self.simulation_data: List[Dict] = []
-        self.validation_warnings: List[str] = []
-    
-    def _generate_base_sensor_values(self, 
-                                     state: BehavioralState,
-                                     timestamp: datetime,
-                                     time_in_state: float) -> Dict[str, float]:
-        """
-        Generate base sensor values for the current state.
-        
-        Args:
-            state: Current behavioral state
-            timestamp: Current timestamp
-            time_in_state: Time spent in current state (minutes)
-            
-        Returns:
-            Dictionary with base sensor values
-        """
-        # Get sensor signature (possibly interpolated if transitioning)
-        signature = self.transition_model.get_interpolated_signature()
-        
-        # Sample values from ranges
-        values = {
-            'temperature': signature.temperature.sample(self.rng),
-            'fxa': signature.fxa.sample(self.rng),
-            'mya': signature.mya.sample(self.rng),
-            'rza': signature.rza.sample(self.rng),
-            'sxg': signature.sxg.sample(self.rng),
-            'lyg': signature.lyg.sample(self.rng),
-            'dzg': signature.dzg.sample(self.rng),
+        # Initialize state generators
+        self.generators = {
+            BehaviorState.LYING: LyingStateGenerator(baseline_temperature, sampling_rate),
+            BehaviorState.STANDING: StandingStateGenerator(baseline_temperature, sampling_rate),
+            BehaviorState.WALKING: WalkingStateGenerator(baseline_temperature, sampling_rate),
+            BehaviorState.RUMINATING_LYING: RuminatingStateGenerator(
+                baseline_temperature, sampling_rate, base_posture='lying'
+            ),
+            BehaviorState.RUMINATING_STANDING: RuminatingStateGenerator(
+                baseline_temperature, sampling_rate, base_posture='standing'
+            ),
+            BehaviorState.FEEDING: FeedingStateGenerator(baseline_temperature, sampling_rate),
         }
         
-        # Add rhythmic patterns if applicable
-        if (self.config.include_rhythmic_patterns and 
-            signature.rhythmic_frequency is not None):
+        # Initialize transition manager
+        self.transition_manager = StateTransitionManager(sampling_rate)
+        
+        # Initialize validator
+        self.validator = TransitionValidator()
+        
+        # Stress overlay handler
+        self.stress_overlay = StressBehaviorOverlay()
+    
+    def generate_continuous_data(
+        self,
+        duration_hours: float,
+        start_datetime: Optional[datetime] = None,
+        include_stress: bool = False,
+        stress_probability: float = 0.05,
+    ) -> pd.DataFrame:
+        """
+        Generate continuous sensor data for specified duration.
+        
+        Args:
+            duration_hours: Total duration in hours
+            start_datetime: Starting datetime (default: now)
+            include_stress: Whether to include stress behavior overlays
+            stress_probability: Probability of stress occurring per state transition
             
-            # Apply rhythmic variation to motion sensors
-            for key in ['fxa', 'mya', 'sxg', 'lyg', 'dzg']:
-                values[key] = self.noise_generator.add_rhythmic_variation(
-                    values[key],
-                    time_in_state,
-                    signature.rhythmic_frequency,
-                    signature.rhythmic_amplitude_scale or 1.0
+        Returns:
+            DataFrame with columns: timestamp, temperature, fxa, mya, rza, sxg, lyg, dzg, state
+        """
+        if start_datetime is None:
+            start_datetime = datetime.now()
+        
+        total_minutes = duration_hours * 60
+        current_time = 0.0  # in seconds
+        all_readings = []
+        state_labels = []
+        
+        # Start with a common initial state
+        current_state = np.random.choice([
+            BehaviorState.LYING,
+            BehaviorState.STANDING,
+        ], p=[0.6, 0.4])
+        
+        print(f"Starting simulation: {duration_hours:.1f} hours, "
+              f"Initial state: {current_state.value}")
+        
+        while current_time < (total_minutes * 60):
+            # Get state generator
+            generator = self.generators[current_state]
+            
+            # Sample duration for this state
+            duration_minutes = generator.sample_duration()
+            
+            # Don't exceed total duration
+            remaining_minutes = (total_minutes * 60 - current_time) / 60
+            duration_minutes = min(duration_minutes, remaining_minutes)
+            
+            if duration_minutes < 0.5:  # Less than 30 seconds
+                break
+            
+            # Generate readings for this state
+            readings = generator.generate(duration_minutes, start_time=current_time)
+            
+            # Apply stress overlay if requested
+            if include_stress and np.random.random() < stress_probability:
+                stress_duration = min(
+                    StressBehaviorOverlay.sample_duration(),
+                    duration_minutes
                 )
-        
-        return values
-    
-    def _apply_individual_modifications(self, values: Dict[str, float]) -> Dict[str, float]:
-        """
-        Apply individual animal variations to sensor values.
-        
-        Args:
-            values: Base sensor values
+                stress_n_samples = int(stress_duration * self.sampling_rate)
+                
+                if stress_n_samples > 0 and stress_n_samples <= len(readings):
+                    # Apply stress to a random portion of the readings
+                    start_idx = np.random.randint(0, max(1, len(readings) - stress_n_samples))
+                    end_idx = start_idx + stress_n_samples
+                    
+                    stressed = self.stress_overlay.apply_stress(
+                        readings[start_idx:end_idx],
+                        stress_intensity=np.random.uniform(0.5, 1.2)
+                    )
+                    readings[start_idx:end_idx] = stressed
             
-        Returns:
-            Modified sensor values
-        """
-        modified = values.copy()
-        
-        # Apply temperature modifications
-        modified['temperature'] = self.animal_profile.apply_temperature_modification(
-            values['temperature']
-        )
-        
-        # Apply activity modifications to motion sensors
-        for key in ['fxa', 'mya', 'sxg', 'lyg', 'dzg']:
-            modified[key] = self.animal_profile.apply_activity_modification(
-                values[key]
-            )
-        
-        # Rza (vertical acceleration) also affected by body size
-        modified['rza'] = values['rza'] * self.animal_profile.body_size_factor
-        
-        return modified
-    
-    def _apply_temporal_effects(self, values: Dict[str, float], 
-                               timestamp: datetime) -> Dict[str, float]:
-        """
-        Apply temporal effects (circadian rhythms, time-of-day).
-        
-        Args:
-            values: Sensor values
-            timestamp: Current timestamp
+            all_readings.extend(readings)
+            state_labels.extend([current_state.value] * len(readings))
             
-        Returns:
-            Modified sensor values
-        """
-        if not self.config.include_temporal_effects:
-            return values
-        
-        modified = values.copy()
-        
-        # Apply circadian temperature effect
-        hour = self.temporal_manager.get_hour_of_day(timestamp)
-        modified['temperature'] = self.temporal_manager.apply_circadian_temperature_effect(
-            values['temperature'], hour
-        )
-        
-        # Apply environmental temperature effect
-        modified['temperature'] = self.noise_generator.apply_environmental_temperature_effect(
-            modified['temperature'],
-            hour,
-            self.config.ambient_temperature
-        )
-        
-        return modified
-    
-    def _apply_noise(self, values: Dict[str, float]) -> Dict[str, float]:
-        """
-        Apply sensor noise to all values.
-        
-        Args:
-            values: Sensor values
+            current_time = readings[-1].timestamp + (60.0 / self.sampling_rate)
             
-        Returns:
-            Noisy sensor values
-        """
-        if not self.config.include_noise:
-            return values
-        
-        return self.noise_generator.add_all_sensor_noise(**values)
-    
-    def _validate_values(self, values: Dict[str, float], timestamp: datetime) -> bool:
-        """
-        Validate sensor values are within realistic ranges.
-        
-        Args:
-            values: Sensor values to validate
-            timestamp: Current timestamp for warning messages
+            # Determine next state
+            next_state = self.transition_manager.get_next_state(current_state)
             
-        Returns:
-            True if valid, False otherwise
-        """
-        if not self.config.include_validation:
-            return True
-        
-        is_valid = validate_sensor_values(
-            values['temperature'],
-            values['fxa'],
-            values['mya'],
-            values['rza'],
-            values['sxg'],
-            values['lyg'],
-            values['dzg']
-        )
-        
-        if not is_valid:
-            warning_msg = f"Invalid sensor values at {timestamp}: {values}"
-            self.validation_warnings.append(warning_msg)
-            warnings.warn(warning_msg)
-        
-        return is_valid
-    
-    def _generate_data_point(self, timestamp: datetime) -> Dict:
-        """
-        Generate a complete data point for the current time step.
-        
-        Args:
-            timestamp: Current timestamp
-            
-        Returns:
-            Dictionary with all sensor values and metadata
-        """
-        # Update state machine
-        current_state, is_transitioning = self.transition_model.update(
-            timestamp, 
-            self.config.time_step_minutes
-        )
-        
-        # Generate base sensor values
-        values = self._generate_base_sensor_values(
-            current_state,
-            timestamp,
-            self.transition_model.time_in_state
-        )
-        
-        # Apply individual animal modifications
-        values = self._apply_individual_modifications(values)
-        
-        # Apply temporal effects
-        values = self._apply_temporal_effects(values, timestamp)
-        
-        # Apply noise
-        values = self._apply_noise(values)
-        
-        # Validate
-        self._validate_values(values, timestamp)
-        
-        # Create complete data point
-        data_point = {
-            'timestamp': timestamp,
-            'animal_id': self.animal_id,
-            'temperature': values['temperature'],
-            'fxa': values['fxa'],
-            'mya': values['mya'],
-            'rza': values['rza'],
-            'sxg': values['sxg'],
-            'lyg': values['lyg'],
-            'dzg': values['dzg'],
-            'true_state': current_state.value,
-            'is_transitioning': is_transitioning,
-            'time_in_state': self.transition_model.time_in_state,
-        }
-        
-        return data_point
-    
-    def run_simulation(self,
-                      duration_hours: float = 24.0,
-                      start_time: Optional[datetime] = None,
-                      initial_state: Optional[BehavioralState] = None) -> pd.DataFrame:
-        """
-        Run the simulation for specified duration.
-        
-        Args:
-            duration_hours: Simulation duration in hours
-            start_time: Starting timestamp (uses current time if None)
-            initial_state: Initial behavioral state (auto-selected if None)
-            
-        Returns:
-            DataFrame with simulated sensor data
-        """
-        # Initialize
-        if start_time is None:
-            start_time = datetime.now().replace(second=0, microsecond=0)
-        
-        self.current_time = start_time
-        self.simulation_data = []
-        self.validation_warnings = []
-        
-        # Initialize state machine
-        self.transition_model.initialize_state(initial_state, start_time)
-        
-        # Calculate number of time steps
-        num_steps = int(duration_hours * 60 / self.config.time_step_minutes)
-        
-        # Run simulation
-        for step in range(num_steps):
-            # Generate data point
-            data_point = self._generate_data_point(self.current_time)
-            self.simulation_data.append(data_point)
-            
-            # Advance time
-            self.current_time += timedelta(minutes=self.config.time_step_minutes)
+            # If state is changing, create transition
+            if next_state != current_state and current_time < (total_minutes * 60):
+                if self.transition_manager.is_valid_transition(current_state, next_state):
+                    # Generate first reading of next state for interpolation
+                    next_generator = self.generators[next_state]
+                    next_sample = next_generator.generate(0.1, start_time=current_time)
+                    
+                    if next_sample:
+                        # Create transition
+                        transition = self.transition_manager.create_transition(
+                            current_state,
+                            next_state,
+                            readings[-1],
+                            next_sample[0]
+                        )
+                        
+                        if transition:
+                            all_readings.extend(transition)
+                            state_labels.extend(['transition'] * len(transition))
+                            current_time = transition[-1].timestamp + (60.0 / self.sampling_rate)
+                
+                current_state = next_state
         
         # Convert to DataFrame
-        df = pd.DataFrame(self.simulation_data)
+        df = self._readings_to_dataframe(all_readings, state_labels, start_datetime)
         
-        # Report validation warnings if any
-        if self.validation_warnings:
-            warnings.warn(f"Simulation completed with {len(self.validation_warnings)} validation warnings")
+        print(f"Simulation complete: {len(df)} samples generated")
+        print(f"State distribution:\n{df['state'].value_counts()}")
         
         return df
     
-    def run_multi_day_simulation(self,
-                                num_days: int = 7,
-                                start_time: Optional[datetime] = None) -> pd.DataFrame:
+    def generate_single_state_data(
+        self,
+        state: BehaviorState,
+        duration_minutes: float,
+        start_datetime: Optional[datetime] = None,
+    ) -> pd.DataFrame:
         """
-        Run a multi-day simulation with consistent patterns.
+        Generate sensor data for a single behavioral state.
         
         Args:
-            num_days: Number of days to simulate
-            start_time: Starting timestamp
+            state: Behavioral state to generate
+            duration_minutes: Duration in minutes
+            start_datetime: Starting datetime (default: now)
             
         Returns:
-            DataFrame with multi-day simulated data
+            DataFrame with sensor readings
         """
-        return self.run_simulation(
-            duration_hours=num_days * 24,
-            start_time=start_time
-        )
+        if start_datetime is None:
+            start_datetime = datetime.now()
+        
+        generator = self.generators[state]
+        readings = generator.generate(duration_minutes, start_time=0.0)
+        state_labels = [state.value] * len(readings)
+        
+        return self._readings_to_dataframe(readings, state_labels, start_datetime)
     
-    def get_summary_statistics(self) -> Dict:
+    def generate_labeled_dataset(
+        self,
+        samples_per_state: int = 100,
+        duration_per_sample_minutes: float = 10.0,
+        include_stress: bool = True,
+    ) -> pd.DataFrame:
         """
-        Get summary statistics of the simulation.
+        Generate a labeled dataset with balanced samples from each state.
         
-        Returns:
-            Dictionary with summary statistics
-        """
-        if not self.simulation_data:
-            return {}
-        
-        df = pd.DataFrame(self.simulation_data)
-        
-        # State distribution
-        state_counts = df['true_state'].value_counts()
-        state_percentages = (state_counts / len(df) * 100).to_dict()
-        
-        # Sensor statistics
-        sensor_stats = {}
-        for sensor in ['temperature', 'fxa', 'mya', 'rza', 'sxg', 'lyg', 'dzg']:
-            sensor_stats[sensor] = {
-                'mean': df[sensor].mean(),
-                'std': df[sensor].std(),
-                'min': df[sensor].min(),
-                'max': df[sensor].max(),
-            }
-        
-        # Transition statistics
-        transitions = (df['is_transitioning'].sum() / len(df) * 100)
-        
-        return {
-            'animal_id': self.animal_id,
-            'total_data_points': len(df),
-            'duration_hours': len(df) * self.config.time_step_minutes / 60,
-            'state_distribution': state_percentages,
-            'sensor_statistics': sensor_stats,
-            'transition_percentage': transitions,
-            'validation_warnings': len(self.validation_warnings),
-        }
-    
-    def export_to_csv(self, filepath: str, include_metadata: bool = True):
-        """
-        Export simulation data to CSV file.
+        Useful for training machine learning models.
         
         Args:
-            filepath: Output file path
-            include_metadata: Include true_state and other metadata columns
+            samples_per_state: Number of samples to generate per state
+            duration_per_sample_minutes: Duration of each sample in minutes
+            include_stress: Whether to include stress-overlaid samples
+            
+        Returns:
+            DataFrame with labeled sensor data
         """
-        df = pd.DataFrame(self.simulation_data)
+        all_data = []
         
-        if not include_metadata:
-            # Export only sensor data
-            columns = ['timestamp', 'animal_id', 'temperature', 
-                      'fxa', 'mya', 'rza', 'sxg', 'lyg', 'dzg']
-            df = df[columns]
+        print(f"Generating labeled dataset: {samples_per_state} samples per state")
+        
+        # Generate samples for each state
+        for state in self.generators.keys():
+            print(f"  Generating {state.value} samples...")
+            
+            for i in range(samples_per_state):
+                start_datetime = datetime.now() + timedelta(minutes=i * duration_per_sample_minutes)
+                df = self.generate_single_state_data(
+                    state,
+                    duration_per_sample_minutes,
+                    start_datetime
+                )
+                df['sample_id'] = f"{state.value}_{i}"
+                all_data.append(df)
+        
+        # Generate stress samples if requested
+        if include_stress:
+            print(f"  Generating stress samples...")
+            stress_samples = samples_per_state // 2  # Half as many stress samples
+            
+            for i in range(stress_samples):
+                # Apply stress to random base state
+                base_state = np.random.choice(list(self.generators.keys()))
+                start_datetime = datetime.now() + timedelta(minutes=i * duration_per_sample_minutes)
+                
+                generator = self.generators[base_state]
+                readings = generator.generate(duration_per_sample_minutes, start_time=0.0)
+                
+                # Apply stress overlay
+                stressed = self.stress_overlay.apply_stress(
+                    readings,
+                    stress_intensity=np.random.uniform(0.5, 1.5)
+                )
+                
+                state_labels = ['stress'] * len(stressed)
+                df = self._readings_to_dataframe(stressed, state_labels, start_datetime)
+                df['sample_id'] = f"stress_{i}"
+                all_data.append(df)
+        
+        # Combine all data
+        combined_df = pd.concat(all_data, ignore_index=True)
+        
+        print(f"Dataset complete: {len(combined_df)} total samples")
+        print(f"State distribution:\n{combined_df['state'].value_counts()}")
+        
+        return combined_df
+    
+    def validate_generated_data(self, df: pd.DataFrame) -> Tuple[bool, List[str]]:
+        """
+        Validate that generated data meets quality criteria.
+        
+        Args:
+            df: DataFrame with generated sensor data
+            
+        Returns:
+            Tuple of (is_valid, list of warnings/errors)
+        """
+        warnings = []
+        
+        # Check for missing values
+        if df.isnull().any().any():
+            warnings.append("Dataset contains missing values")
+        
+        # Check sensor value ranges
+        sensor_ranges = {
+            'temperature': (36.0, 42.0),
+            'fxa': (-3.0, 3.0),
+            'mya': (-3.0, 3.0),
+            'rza': (-1.5, 1.5),
+            'sxg': (-100.0, 100.0),
+            'lyg': (-100.0, 100.0),
+            'dzg': (-100.0, 100.0),
+        }
+        
+        for sensor, (min_val, max_val) in sensor_ranges.items():
+            if sensor in df.columns:
+                if df[sensor].min() < min_val or df[sensor].max() > max_val:
+                    warnings.append(
+                        f"{sensor} values outside expected range "
+                        f"[{min_val}, {max_val}]: "
+                        f"actual [{df[sensor].min():.2f}, {df[sensor].max():.2f}]"
+                    )
+        
+        # Check state distribution
+        if 'state' in df.columns:
+            state_counts = df['state'].value_counts()
+            if len(state_counts) < 3:
+                warnings.append("Dataset contains fewer than 3 different states")
+        
+        return len(warnings) == 0, warnings
+    
+    def _readings_to_dataframe(
+        self,
+        readings: List[SensorReading],
+        state_labels: List[str],
+        start_datetime: datetime
+    ) -> pd.DataFrame:
+        """
+        Convert sensor readings to DataFrame with proper timestamps.
+        
+        Args:
+            readings: List of SensorReading objects
+            state_labels: List of state labels for each reading
+            start_datetime: Starting datetime for the first reading
+            
+        Returns:
+            DataFrame with sensor data and timestamps
+        """
+        data = {
+            'timestamp': [],
+            'temperature': [],
+            'fxa': [],
+            'mya': [],
+            'rza': [],
+            'sxg': [],
+            'lyg': [],
+            'dzg': [],
+            'state': state_labels,
+        }
+        
+        for reading in readings:
+            # Convert relative timestamp to absolute datetime
+            dt = start_datetime + timedelta(seconds=reading.timestamp)
+            data['timestamp'].append(dt)
+            data['temperature'].append(reading.temperature)
+            data['fxa'].append(reading.fxa)
+            data['mya'].append(reading.mya)
+            data['rza'].append(reading.rza)
+            data['sxg'].append(reading.sxg)
+            data['lyg'].append(reading.lyg)
+            data['dzg'].append(reading.dzg)
+        
+        df = pd.DataFrame(data)
+        return df
+    
+    def export_to_csv(
+        self,
+        df: pd.DataFrame,
+        filepath: str,
+        include_state_labels: bool = True
+    ):
+        """
+        Export generated data to CSV file.
+        
+        Args:
+            df: DataFrame with sensor data
+            filepath: Output file path
+            include_state_labels: Whether to include state labels in export
+        """
+        if not include_state_labels and 'state' in df.columns:
+            df = df.drop(columns=['state'])
         
         df.to_csv(filepath, index=False)
+        print(f"Data exported to: {filepath}")
     
-    def reset(self, seed: Optional[int] = None):
+    def get_state_statistics(self, df: pd.DataFrame) -> Dict[str, Dict[str, float]]:
         """
-        Reset the simulation engine to initial state.
+        Calculate statistics for each behavioral state in the dataset.
         
         Args:
-            seed: New random seed (keeps existing if None)
+            df: DataFrame with sensor data and state labels
+            
+        Returns:
+            Dictionary of state statistics
         """
-        if seed is not None:
-            self.seed = seed
-            self.rng = np.random.default_rng(seed)
+        if 'state' not in df.columns:
+            return {}
         
-        self.current_time = None
-        self.simulation_data = []
-        self.validation_warnings = []
-        self.noise_generator.reset()
+        stats = {}
+        
+        for state in df['state'].unique():
+            state_data = df[df['state'] == state]
+            
+            stats[state] = {
+                'count': len(state_data),
+                'duration_minutes': len(state_data) / self.sampling_rate,
+                'avg_temperature': state_data['temperature'].mean(),
+                'avg_rza': state_data['rza'].mean(),
+                'std_fxa': state_data['fxa'].std(),
+                'std_mya': state_data['mya'].std(),
+                'max_gyro': max(
+                    state_data['sxg'].abs().max(),
+                    state_data['lyg'].abs().max(),
+                    state_data['dzg'].abs().max()
+                ),
+            }
+        
+        return stats
 
 
-def create_simulation_engine(animal_id: str = "sim_animal_001",
-                            seed: Optional[int] = None,
-                            **kwargs) -> SimulationEngine:
+class BatchSimulator:
     """
-    Convenience function to create a simulation engine with default settings.
+    Utility for generating multiple simulation runs in batch.
     
-    Args:
-        animal_id: Animal identifier
-        seed: Random seed
-        **kwargs: Additional arguments passed to SimulationEngine
-        
-    Returns:
-        Configured SimulationEngine instance
+    Useful for creating large training datasets or testing different scenarios.
     """
-    return SimulationEngine(animal_id=animal_id, seed=seed, **kwargs)
+    
+    def __init__(self, engine: SimulationEngine):
+        """
+        Initialize batch simulator.
+        
+        Args:
+            engine: SimulationEngine instance to use
+        """
+        self.engine = engine
+    
+    def generate_multi_animal_dataset(
+        self,
+        num_animals: int,
+        hours_per_animal: float,
+        output_dir: str,
+        individual_files: bool = True,
+    ) -> pd.DataFrame:
+        """
+        Generate simulated data for multiple animals.
+        
+        Args:
+            num_animals: Number of animals to simulate
+            hours_per_animal: Hours of data per animal
+            output_dir: Directory to save output files
+            individual_files: Whether to save individual CSV files per animal
+            
+        Returns:
+            Combined DataFrame with all animal data
+        """
+        import os
+        os.makedirs(output_dir, exist_ok=True)
+        
+        all_data = []
+        
+        print(f"Generating data for {num_animals} animals...")
+        
+        for animal_id in range(1, num_animals + 1):
+            print(f"\nAnimal {animal_id}/{num_animals}")
+            
+            # Vary baseline temperature slightly per animal
+            temp_variation = np.random.uniform(-0.3, 0.3)
+            self.engine.baseline_temperature = 38.5 + temp_variation
+            
+            # Generate data
+            df = self.engine.generate_continuous_data(
+                duration_hours=hours_per_animal,
+                include_stress=True,
+                stress_probability=0.05
+            )
+            
+            df['animal_id'] = f"animal_{animal_id:03d}"
+            all_data.append(df)
+            
+            # Save individual file if requested
+            if individual_files:
+                filepath = os.path.join(output_dir, f"animal_{animal_id:03d}.csv")
+                self.engine.export_to_csv(df, filepath)
+        
+        # Combine all data
+        combined_df = pd.concat(all_data, ignore_index=True)
+        
+        # Save combined file
+        combined_path = os.path.join(output_dir, "combined_dataset.csv")
+        self.engine.export_to_csv(combined_df, combined_path)
+        
+        print(f"\nBatch simulation complete!")
+        print(f"Total samples: {len(combined_df)}")
+        
+        return combined_df
