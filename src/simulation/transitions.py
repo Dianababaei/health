@@ -1,370 +1,368 @@
 """
-State Transition Model
+State transition logic for behavioral state simulation.
 
-This module implements the probabilistic state machine for behavioral transitions.
-It includes:
-- Transition probability matrices between behavioral states
-- Duration distributions for each state
-- Smooth transition interpolation between states
-- Time-of-day modulation of transition probabilities
-
-Based on cattle behavior research:
-- Lying duration: 30-120 minutes
-- Standing duration: 5-30 minutes
-- Walking duration: 2-15 minutes
-- Ruminating duration: 20-60 minutes
-- Feeding duration: 15-45 minutes
-
-Transition probabilities (per hour):
-- Lying → Standing: 15%
-- Standing → Walking: 25%
-- Walking → Feeding: 40%
-- etc.
+Handles smooth transitions between behavioral states with gradual sensor value
+interpolation to ensure realistic state changes.
 """
 
-from dataclasses import dataclass
-from typing import Dict, Tuple, Optional
 import numpy as np
-from datetime import datetime
+from typing import Optional, Tuple
+from enum import Enum
 
-from .state_params import BehavioralState, SensorSignature, get_state_signature
-from .temporal import TemporalPatternManager
-
-
-@dataclass
-class StateTransitionConfig:
-    """Configuration for state transition probabilities and durations."""
-    
-    # Transition probability matrix (from_state -> to_state -> probability per hour)
-    # These are BASE probabilities that get modified by time-of-day
-    transition_matrix: Dict[BehavioralState, Dict[BehavioralState, float]]
-    
-    # Duration distributions (state -> (min_minutes, max_minutes, mean_minutes))
-    duration_ranges: Dict[BehavioralState, Tuple[float, float, float]]
-    
-    # Smooth transition duration (seconds)
-    transition_smoothing_time: float = 60.0  # 1 minute default
+from .states import (
+    SensorReading,
+    LyingStateGenerator,
+    StandingStateGenerator,
+    WalkingStateGenerator,
+    RuminatingStateGenerator,
+    FeedingStateGenerator,
+)
 
 
-# Default transition probability matrix (per hour)
-DEFAULT_TRANSITION_MATRIX = {
-    BehavioralState.LYING: {
-        BehavioralState.LYING: 0.85,      # Stay lying
-        BehavioralState.STANDING: 0.10,   # Get up
-        BehavioralState.WALKING: 0.02,    # Rare: get up and walk immediately
-        BehavioralState.RUMINATING: 0.03, # Start ruminating while lying
-        BehavioralState.FEEDING: 0.00,    # Can't feed while lying
-    },
-    BehavioralState.STANDING: {
-        BehavioralState.LYING: 0.15,      # Lie down
-        BehavioralState.STANDING: 0.50,   # Stay standing
-        BehavioralState.WALKING: 0.25,    # Start walking
-        BehavioralState.RUMINATING: 0.05, # Start ruminating while standing
-        BehavioralState.FEEDING: 0.05,    # Start feeding
-    },
-    BehavioralState.WALKING: {
-        BehavioralState.LYING: 0.05,      # Lie down after walking
-        BehavioralState.STANDING: 0.30,   # Stop and stand
-        BehavioralState.WALKING: 0.25,    # Keep walking
-        BehavioralState.RUMINATING: 0.00, # Can't ruminate while walking
-        BehavioralState.FEEDING: 0.40,    # Walk to food and start eating
-    },
-    BehavioralState.RUMINATING: {
-        BehavioralState.LYING: 0.20,      # Lie down while ruminating
-        BehavioralState.STANDING: 0.30,   # Stand up or keep standing
-        BehavioralState.WALKING: 0.05,    # Stop ruminating and walk
-        BehavioralState.RUMINATING: 0.40, # Continue ruminating
-        BehavioralState.FEEDING: 0.05,    # Stop ruminating and eat
-    },
-    BehavioralState.FEEDING: {
-        BehavioralState.LYING: 0.10,      # Finish eating and lie down
-        BehavioralState.STANDING: 0.20,   # Finish eating and stand
-        BehavioralState.WALKING: 0.15,    # Walk to new location
-        BehavioralState.RUMINATING: 0.25, # Start ruminating after eating
-        BehavioralState.FEEDING: 0.30,    # Continue feeding
-    },
-}
+class BehaviorState(Enum):
+    """Enumeration of possible behavioral states."""
+    LYING = "lying"
+    STANDING = "standing"
+    WALKING = "walking"
+    RUMINATING_LYING = "ruminating_lying"
+    RUMINATING_STANDING = "ruminating_standing"
+    FEEDING = "feeding"
 
 
-# Duration ranges for each state (min, max, mean) in minutes
-DEFAULT_DURATION_RANGES = {
-    BehavioralState.LYING: (30.0, 120.0, 60.0),
-    BehavioralState.STANDING: (5.0, 30.0, 15.0),
-    BehavioralState.WALKING: (2.0, 15.0, 5.0),
-    BehavioralState.RUMINATING: (20.0, 60.0, 40.0),
-    BehavioralState.FEEDING: (15.0, 45.0, 25.0),
-}
-
-
-class StateTransitionModel:
+class StateTransitionManager:
     """
-    Manages behavioral state transitions with probabilistic model.
+    Manages transitions between behavioral states with smooth interpolation.
     
-    This class handles:
-    - Determining when to transition between states
-    - Selecting next state based on probability matrix
-    - Generating realistic state durations
-    - Smooth interpolation between states
+    Implements realistic transition logic:
+    - Lying → Standing: Gradual Rza increase over 5-15 seconds
+    - Standing → Walking: Fxa rhythm onset, increased angular velocities
+    - Walking → Standing/Feeding: Deceleration of rhythmic patterns
+    - Ruminating: Can begin/end during lying or standing without state change
+    - Stress Overlays: Sudden onset but gradual return to normal patterns
     """
     
-    def __init__(self, 
-                 config: Optional[StateTransitionConfig] = None,
-                 temporal_manager: Optional[TemporalPatternManager] = None,
-                 seed: Optional[int] = None):
+    def __init__(self, sampling_rate: float = 1.0):
         """
-        Initialize the state transition model.
+        Initialize state transition manager.
         
         Args:
-            config: Transition configuration (uses defaults if None)
-            temporal_manager: Temporal pattern manager for time-of-day effects
-            seed: Random seed for reproducibility
+            sampling_rate: Samples per minute (default: 1.0 for 1 sample/minute)
         """
-        if config is None:
-            config = StateTransitionConfig(
-                transition_matrix=DEFAULT_TRANSITION_MATRIX,
-                duration_ranges=DEFAULT_DURATION_RANGES,
-                transition_smoothing_time=60.0
-            )
+        self.sampling_rate = sampling_rate
+        self.time_step = 60.0 / sampling_rate  # seconds per sample
         
-        self.config = config
-        self.temporal_manager = temporal_manager or TemporalPatternManager()
-        self.rng = np.random.default_rng(seed)
+        # Define valid transitions and their transition times (in seconds)
+        self.transition_times = {
+            (BehaviorState.LYING, BehaviorState.STANDING): (5, 15),
+            (BehaviorState.STANDING, BehaviorState.LYING): (3, 8),
+            (BehaviorState.STANDING, BehaviorState.WALKING): (2, 5),
+            (BehaviorState.WALKING, BehaviorState.STANDING): (2, 5),
+            (BehaviorState.WALKING, BehaviorState.FEEDING): (3, 7),
+            (BehaviorState.STANDING, BehaviorState.FEEDING): (2, 5),
+            (BehaviorState.FEEDING, BehaviorState.STANDING): (2, 5),
+            (BehaviorState.FEEDING, BehaviorState.WALKING): (2, 5),
+            # Ruminating transitions
+            (BehaviorState.LYING, BehaviorState.RUMINATING_LYING): (1, 3),
+            (BehaviorState.RUMINATING_LYING, BehaviorState.LYING): (1, 3),
+            (BehaviorState.STANDING, BehaviorState.RUMINATING_STANDING): (1, 3),
+            (BehaviorState.RUMINATING_STANDING, BehaviorState.STANDING): (1, 3),
+        }
         
-        # Current state tracking
-        self.current_state: Optional[BehavioralState] = None
-        self.time_in_state: float = 0.0  # minutes
-        self.target_duration: float = 0.0  # minutes
-        self.is_transitioning: bool = False
-        self.transition_progress: float = 0.0  # 0.0 to 1.0
-        self.previous_state: Optional[BehavioralState] = None
+        # Transition probability matrix (from_state -> to_state)
+        self.transition_probabilities = self._build_transition_probabilities()
     
-    def initialize_state(self, initial_state: Optional[BehavioralState] = None,
-                        timestamp: Optional[datetime] = None) -> BehavioralState:
+    def _build_transition_probabilities(self) -> dict:
         """
-        Initialize the simulation with a starting state.
+        Build realistic transition probability matrix.
         
-        Args:
-            initial_state: Starting state (random if None)
-            timestamp: Current timestamp for time-of-day effects
-            
         Returns:
-            The initialized state
+            Dictionary of {from_state: {to_state: probability}}
         """
-        if initial_state is None:
-            # Choose initial state based on time of day
-            if timestamp:
-                hour = self.temporal_manager.get_hour_of_day(timestamp)
-                if self.temporal_manager.is_night_time(hour):
-                    initial_state = BehavioralState.LYING
-                elif self.temporal_manager.is_feeding_time(hour):
-                    initial_state = self.rng.choice([BehavioralState.FEEDING, BehavioralState.STANDING])
-                else:
-                    initial_state = self.rng.choice([BehavioralState.STANDING, BehavioralState.WALKING])
-            else:
-                initial_state = BehavioralState.STANDING
-        
-        self.current_state = initial_state
-        self.time_in_state = 0.0
-        self.target_duration = self._sample_duration(initial_state)
-        self.is_transitioning = False
-        self.transition_progress = 0.0
-        
-        return initial_state
+        return {
+            BehaviorState.LYING: {
+                BehaviorState.LYING: 0.7,  # Tend to stay lying
+                BehaviorState.STANDING: 0.2,
+                BehaviorState.RUMINATING_LYING: 0.1,
+            },
+            BehaviorState.STANDING: {
+                BehaviorState.STANDING: 0.4,
+                BehaviorState.LYING: 0.2,
+                BehaviorState.WALKING: 0.2,
+                BehaviorState.FEEDING: 0.1,
+                BehaviorState.RUMINATING_STANDING: 0.1,
+            },
+            BehaviorState.WALKING: {
+                BehaviorState.WALKING: 0.5,
+                BehaviorState.STANDING: 0.3,
+                BehaviorState.FEEDING: 0.2,
+            },
+            BehaviorState.RUMINATING_LYING: {
+                BehaviorState.RUMINATING_LYING: 0.8,  # Long rumination sessions
+                BehaviorState.LYING: 0.2,
+            },
+            BehaviorState.RUMINATING_STANDING: {
+                BehaviorState.RUMINATING_STANDING: 0.7,
+                BehaviorState.STANDING: 0.3,
+            },
+            BehaviorState.FEEDING: {
+                BehaviorState.FEEDING: 0.6,
+                BehaviorState.STANDING: 0.2,
+                BehaviorState.WALKING: 0.2,
+            },
+        }
     
-    def _sample_duration(self, state: BehavioralState) -> float:
+    def get_next_state(self, current_state: BehaviorState) -> BehaviorState:
         """
-        Sample a duration for the given state from its distribution.
+        Sample the next behavioral state based on transition probabilities.
         
         Args:
-            state: Behavioral state
-            
-        Returns:
-            Duration in minutes
-        """
-        min_dur, max_dur, mean_dur = self.config.duration_ranges[state]
-        
-        # Use log-normal distribution for more realistic durations
-        # (some states last much longer than others)
-        std_dur = (max_dur - min_dur) / 4.0
-        
-        # Sample from truncated normal distribution
-        duration = self.rng.normal(mean_dur, std_dur)
-        duration = np.clip(duration, min_dur, max_dur)
-        
-        return duration
-    
-    def _get_modified_transition_probabilities(self, 
-                                              from_state: BehavioralState,
-                                              timestamp: datetime) -> Dict[BehavioralState, float]:
-        """
-        Get transition probabilities modified by time-of-day effects.
-        
-        Args:
-            from_state: Current state
-            timestamp: Current timestamp
-            
-        Returns:
-            Dictionary of transition probabilities to each state
-        """
-        base_probs = self.config.transition_matrix[from_state].copy()
-        
-        # Get time-of-day preferences
-        hour = self.temporal_manager.get_hour_of_day(timestamp)
-        preferences = self.temporal_manager.get_state_preference_multipliers(hour)
-        
-        # Modify probabilities by preferences
-        modified_probs = {}
-        total = 0.0
-        
-        for to_state, base_prob in base_probs.items():
-            # Apply preference multiplier
-            modified_prob = base_prob * preferences[to_state]
-            modified_probs[to_state] = modified_prob
-            total += modified_prob
-        
-        # Normalize to sum to 1.0
-        if total > 0:
-            for state in modified_probs:
-                modified_probs[state] /= total
-        
-        return modified_probs
-    
-    def should_transition(self, timestamp: datetime) -> bool:
-        """
-        Determine if a state transition should occur.
-        
-        Args:
-            timestamp: Current timestamp
-            
-        Returns:
-            True if should transition to new state
-        """
-        # Check if we've exceeded the target duration
-        if self.time_in_state >= self.target_duration:
-            return True
-        
-        # Small chance of early transition (adds variability)
-        if self.time_in_state > self.target_duration * 0.5:
-            early_transition_prob = 0.05  # 5% chance per minute
-            if self.rng.random() < early_transition_prob:
-                return True
-        
-        return False
-    
-    def select_next_state(self, timestamp: datetime) -> BehavioralState:
-        """
-        Select the next behavioral state based on transition probabilities.
-        
-        Args:
-            timestamp: Current timestamp
+            current_state: Current behavioral state
             
         Returns:
             Next behavioral state
         """
-        probs = self._get_modified_transition_probabilities(self.current_state, timestamp)
+        probs = self.transition_probabilities.get(current_state, {})
+        if not probs:
+            return current_state
         
-        # Sample from probability distribution
         states = list(probs.keys())
-        probabilities = [probs[s] for s in states]
+        probabilities = list(probs.values())
         
-        next_state = self.rng.choice(states, p=probabilities)
-        return next_state
+        # Normalize probabilities
+        total = sum(probabilities)
+        probabilities = [p / total for p in probabilities]
+        
+        return np.random.choice(states, p=probabilities)
     
-    def update(self, timestamp: datetime, time_step_minutes: float = 1.0) -> Tuple[BehavioralState, bool]:
+    def create_transition(
+        self,
+        from_state: BehaviorState,
+        to_state: BehaviorState,
+        start_reading: SensorReading,
+        end_reading: SensorReading,
+    ) -> list[SensorReading]:
         """
-        Update the state machine for one time step.
+        Create smooth transition between two states.
         
         Args:
-            timestamp: Current timestamp
-            time_step_minutes: Time step size in minutes
+            from_state: Starting behavioral state
+            to_state: Target behavioral state
+            start_reading: Last reading from the previous state
+            end_reading: First reading from the next state
             
         Returns:
-            Tuple of (current_state, is_transitioning)
+            List of interpolated sensor readings for the transition
         """
-        # Update time in current state
-        self.time_in_state += time_step_minutes
+        # Get transition time range
+        transition_key = (from_state, to_state)
+        if transition_key not in self.transition_times:
+            # No defined transition - use instant transition
+            return []
         
-        # Check if we should transition
-        if not self.is_transitioning and self.should_transition(timestamp):
-            # Start transition
-            self.previous_state = self.current_state
-            self.current_state = self.select_next_state(timestamp)
-            self.is_transitioning = True
-            self.transition_progress = 0.0
+        min_time, max_time = self.transition_times[transition_key]
+        transition_duration = np.random.uniform(min_time, max_time)
         
-        # Update transition progress
-        if self.is_transitioning:
-            transition_minutes = self.config.transition_smoothing_time / 60.0
-            self.transition_progress += time_step_minutes / transition_minutes
+        # Calculate number of samples for transition
+        n_samples = max(2, int((transition_duration / 60.0) * self.sampling_rate))
+        
+        # Create interpolated readings
+        transition_readings = []
+        for i in range(1, n_samples):
+            # Linear interpolation factor
+            t = i / n_samples
             
-            if self.transition_progress >= 1.0:
-                # Transition complete
-                self.is_transitioning = False
-                self.transition_progress = 0.0
-                self.time_in_state = 0.0
-                self.target_duration = self._sample_duration(self.current_state)
-                self.previous_state = None
+            # Apply different interpolation curves for different transitions
+            if from_state == BehaviorState.LYING and to_state == BehaviorState.STANDING:
+                # Gradual acceleration in Rza change (ease-in-out)
+                t = self._ease_in_out(t)
+            elif from_state == BehaviorState.STANDING and to_state == BehaviorState.WALKING:
+                # Quick ramp-up for walking (ease-in)
+                t = self._ease_in(t)
+            elif from_state == BehaviorState.WALKING:
+                # Gradual deceleration (ease-out)
+                t = self._ease_out(t)
+            
+            timestamp = start_reading.timestamp + (i * transition_duration / n_samples)
+            
+            # Interpolate each sensor value
+            temp = self._interpolate(start_reading.temperature, end_reading.temperature, t)
+            fxa = self._interpolate(start_reading.fxa, end_reading.fxa, t)
+            mya = self._interpolate(start_reading.mya, end_reading.mya, t)
+            rza = self._interpolate(start_reading.rza, end_reading.rza, t)
+            sxg = self._interpolate(start_reading.sxg, end_reading.sxg, t)
+            lyg = self._interpolate(start_reading.lyg, end_reading.lyg, t)
+            dzg = self._interpolate(start_reading.dzg, end_reading.dzg, t)
+            
+            # Add small noise to make transition more natural
+            noise_scale = 0.05
+            fxa += np.random.normal(0, noise_scale)
+            mya += np.random.normal(0, noise_scale)
+            sxg += np.random.normal(0, 2.0)
+            lyg += np.random.normal(0, 2.0)
+            dzg += np.random.normal(0, 2.0)
+            
+            transition_readings.append(SensorReading(
+                timestamp=timestamp,
+                temperature=temp,
+                fxa=fxa,
+                mya=mya,
+                rza=rza,
+                sxg=sxg,
+                lyg=lyg,
+                dzg=dzg
+            ))
         
-        return self.current_state, self.is_transitioning
+        return transition_readings
     
-    def get_interpolated_signature(self) -> SensorSignature:
+    def is_valid_transition(self, from_state: BehaviorState, to_state: BehaviorState) -> bool:
         """
-        Get interpolated sensor signature during transitions.
+        Check if a transition between states is valid.
         
-        During transitions, sensor values gradually change from previous state
-        to current state.
-        
+        Args:
+            from_state: Starting state
+            to_state: Target state
+            
         Returns:
-            Interpolated sensor signature
+            True if transition is valid, False otherwise
         """
-        if not self.is_transitioning or self.previous_state is None:
-            return get_state_signature(self.current_state)
+        if from_state == to_state:
+            return True
         
-        # Get signatures for both states
-        prev_sig = get_state_signature(self.previous_state)
-        curr_sig = get_state_signature(self.current_state)
-        
-        # Interpolate using smooth transition function (ease-in-out)
-        t = self.transition_progress
-        # Smooth step function: 3t² - 2t³
-        smooth_t = 3 * t * t - 2 * t * t * t
-        
-        # Create interpolated signature
-        def interpolate_range(prev_range, curr_range):
-            from .state_params import SensorRange
-            return SensorRange(
-                min_value=prev_range.min_value * (1 - smooth_t) + curr_range.min_value * smooth_t,
-                max_value=prev_range.max_value * (1 - smooth_t) + curr_range.max_value * smooth_t,
-                mean=prev_range.mean * (1 - smooth_t) + curr_range.mean * smooth_t,
-                std=prev_range.std * (1 - smooth_t) + curr_range.std * smooth_t,
-            )
-        
-        interpolated_sig = SensorSignature(
-            temperature=interpolate_range(prev_sig.temperature, curr_sig.temperature),
-            fxa=interpolate_range(prev_sig.fxa, curr_sig.fxa),
-            mya=interpolate_range(prev_sig.mya, curr_sig.mya),
-            rza=interpolate_range(prev_sig.rza, curr_sig.rza),
-            sxg=interpolate_range(prev_sig.sxg, curr_sig.sxg),
-            lyg=interpolate_range(prev_sig.lyg, curr_sig.lyg),
-            dzg=interpolate_range(prev_sig.dzg, curr_sig.dzg),
-            rhythmic_frequency=curr_sig.rhythmic_frequency,
-            rhythmic_amplitude_scale=curr_sig.rhythmic_amplitude_scale,
-        )
-        
-        return interpolated_sig
+        return (from_state, to_state) in self.transition_times
     
-    def get_state_info(self) -> Dict:
+    @staticmethod
+    def _interpolate(start: float, end: float, t: float) -> float:
+        """Linear interpolation between two values."""
+        return start + (end - start) * t
+    
+    @staticmethod
+    def _ease_in_out(t: float) -> float:
+        """Ease-in-out interpolation curve (smooth acceleration and deceleration)."""
+        return t * t * (3 - 2 * t)
+    
+    @staticmethod
+    def _ease_in(t: float) -> float:
+        """Ease-in interpolation curve (gradual acceleration)."""
+        return t * t
+    
+    @staticmethod
+    def _ease_out(t: float) -> float:
+        """Ease-out interpolation curve (gradual deceleration)."""
+        return t * (2 - t)
+    
+    def get_state_sequence_probabilities(
+        self,
+        sequence_length: int = 10,
+        start_state: Optional[BehaviorState] = None
+    ) -> list[BehaviorState]:
         """
-        Get current state information for debugging/logging.
+        Generate a realistic sequence of behavioral states.
         
+        Args:
+            sequence_length: Number of states in the sequence
+            start_state: Starting state (random if None)
+            
         Returns:
-            Dictionary with state information
+            List of behavioral states
         """
-        return {
-            'current_state': self.current_state.value if self.current_state else None,
-            'previous_state': self.previous_state.value if self.previous_state else None,
-            'time_in_state': self.time_in_state,
-            'target_duration': self.target_duration,
-            'is_transitioning': self.is_transitioning,
-            'transition_progress': self.transition_progress,
+        if start_state is None:
+            # Start with common states
+            start_state = np.random.choice([
+                BehaviorState.LYING,
+                BehaviorState.STANDING,
+            ], p=[0.6, 0.4])
+        
+        sequence = [start_state]
+        current = start_state
+        
+        for _ in range(sequence_length - 1):
+            next_state = self.get_next_state(current)
+            sequence.append(next_state)
+            current = next_state
+        
+        return sequence
+
+
+class TransitionValidator:
+    """Validates that state transitions meet realistic criteria."""
+    
+    @staticmethod
+    def validate_transition_smoothness(
+        readings: list[SensorReading],
+        max_jump_threshold: dict = None
+    ) -> Tuple[bool, list[str]]:
+        """
+        Validate that sensor transitions are smooth without unrealistic jumps.
+        
+        Args:
+            readings: List of sensor readings to validate
+            max_jump_threshold: Dictionary of maximum allowed jumps per sensor
+            
+        Returns:
+            Tuple of (is_valid, list of error messages)
+        """
+        if max_jump_threshold is None:
+            max_jump_threshold = {
+                'temperature': 0.5,  # °C
+                'fxa': 2.0,  # m/s²
+                'mya': 2.0,  # m/s²
+                'rza': 0.5,  # g
+                'sxg': 50.0,  # °/s
+                'lyg': 50.0,  # °/s
+                'dzg': 50.0,  # °/s
+            }
+        
+        errors = []
+        
+        for i in range(1, len(readings)):
+            prev = readings[i - 1]
+            curr = readings[i]
+            
+            # Check each sensor for unrealistic jumps
+            for sensor, threshold in max_jump_threshold.items():
+                prev_val = getattr(prev, sensor)
+                curr_val = getattr(curr, sensor)
+                jump = abs(curr_val - prev_val)
+                
+                if jump > threshold:
+                    errors.append(
+                        f"Unrealistic jump in {sensor} at index {i}: "
+                        f"{prev_val:.2f} -> {curr_val:.2f} (jump: {jump:.2f})"
+                    )
+        
+        return len(errors) == 0, errors
+    
+    @staticmethod
+    def validate_state_duration(
+        state: BehaviorState,
+        duration_minutes: float
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Validate that state duration is realistic.
+        
+        Args:
+            state: Behavioral state
+            duration_minutes: Duration in minutes
+            
+        Returns:
+            Tuple of (is_valid, error message if invalid)
+        """
+        # Define reasonable duration ranges (min, max) in minutes
+        duration_ranges = {
+            BehaviorState.LYING: (10, 180),
+            BehaviorState.STANDING: (2, 60),
+            BehaviorState.WALKING: (1, 30),
+            BehaviorState.RUMINATING_LYING: (10, 90),
+            BehaviorState.RUMINATING_STANDING: (10, 90),
+            BehaviorState.FEEDING: (10, 90),
         }
+        
+        min_dur, max_dur = duration_ranges.get(state, (0, float('inf')))
+        
+        if duration_minutes < min_dur:
+            return False, f"{state.value} duration {duration_minutes:.1f} min is too short (min: {min_dur})"
+        
+        if duration_minutes > max_dur:
+            return False, f"{state.value} duration {duration_minutes:.1f} min is too long (max: {max_dur})"
+        
+        return True, None

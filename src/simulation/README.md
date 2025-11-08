@@ -1,300 +1,365 @@
-# Behavioral State Simulation Module
+# Cattle Behavior Simulation Module
+
+A realistic data simulation engine for generating cattle behavioral sensor data with accurate physiological and movement patterns.
 
 ## Overview
 
-This module provides a comprehensive simulation engine for generating realistic cattle sensor data based on behavioral states. The simulation is grounded in cattle behavior research literature and produces minute-by-minute sensor readings that accurately represent real-world patterns.
+This module generates synthetic sensor data that closely mimics real cattle behavior patterns from neck-mounted sensors. It includes:
 
-## Features
+- **5 Core Behavioral States**: Lying, Standing, Walking, Ruminating, Feeding
+- **Stress Behavior Overlays**: Erratic movement patterns
+- **Smooth State Transitions**: Gradual sensor value interpolation
+- **Realistic Durations**: State-specific duration distributions
+- **Sensor Signature Accuracy**: Based on documented cattle behavior literature
 
-### Core Capabilities
-- **Literature-Based Sensor Signatures**: All behavioral states (lying, standing, walking, ruminating, feeding) have sensor patterns based on research
-- **Realistic State Transitions**: Probabilistic state machine with time-of-day modulation
-- **Circadian Rhythms**: Body temperature and activity patterns follow natural daily cycles
-- **Individual Variation**: Each simulated animal has unique baseline characteristics
-- **Sensor Noise**: Realistic noise levels based on typical sensor specifications
-- **Smooth Transitions**: Gradual sensor value changes over 30-120 seconds between states
-- **Validation**: Automatic checks to ensure generated data falls within realistic ranges
+## Module Structure
 
-### Sensor Parameters (7 total)
-1. **Temperature** (°C) - Body temperature with circadian rhythm
-2. **Fxa** (g) - Forward-backward acceleration
-3. **Mya** (g) - Lateral acceleration
-4. **Rza** (g) - Vertical acceleration (posture indicator)
-5. **Sxg** (°/s) - Roll angular velocity
-6. **Lyg** (°/s) - Pitch angular velocity
-7. **Dzg** (°/s) - Yaw angular velocity
+```
+simulation/
+├── __init__.py           # Package exports
+├── states.py             # Behavioral state generators
+├── transitions.py        # State transition logic
+├── engine.py             # Main simulation engine
+├── example_usage.py      # Usage examples
+└── README.md            # This file
+```
 
-### Behavioral States
-- **Lying**: Low activity, negative Rza (< -0.5g), minimal movement
-- **Standing**: Upright posture (Rza > 0.7g), stable, low motion
-- **Walking**: Rhythmic patterns (~1 Hz), forward acceleration, head bobbing
-- **Ruminating**: Jaw movements (Mya oscillations ~50 cycles/min), can occur lying or standing
-- **Feeding**: Head down (negative Lyg), moderate forward movement
+## Behavioral States
+
+### 1. Lying State
+- **Rza**: -0.5g to -1.0g (horizontal/tilted body)
+- **Motion**: Minimal (±0.05g accelerations, ±5°/s gyroscopes)
+- **Temperature**: Baseline ± 0.2°C
+- **Duration**: 30-120 minutes per bout
+
+### 2. Standing State
+- **Rza**: 0.7g to 0.95g (upright posture)
+- **Motion**: Low variance with occasional weight shifting
+- **Temperature**: Baseline ± 0.1°C
+- **Duration**: 5-30 minutes per bout
+
+### 3. Walking State
+- **Fxa**: Rhythmic 0.3-0.8 m/s² at 0.5-1.5 Hz (gait frequency)
+- **Rza**: 0.7-0.9g (slight forward tilt)
+- **Mya**: Side-to-side oscillation 0.2-0.5 m/s²
+- **Gyroscopes**: Moderate angular velocities (10-30°/s)
+- **Temperature**: +0.1-0.3°C increase during extended walking
+- **Duration**: 2-15 minutes per bout
+
+### 4. Ruminating State
+- **Mya**: Chewing oscillations at 40-60 cycles/minute (0.67-1.0 Hz)
+- **Lyg**: Head bobbing synchronized with chewing (±10-15°/s)
+- **Base Posture**: Can occur during lying OR standing
+- **Other Axes**: Maintain base state values
+- **Duration**: 20-60 minutes per session
+
+### 5. Feeding State
+- **Lyg**: Negative pitch -20° to -45° (head down)
+- **Fxa**: Moderate forward movement 0.1-0.3 m/s²
+- **Mya**: Chewing pattern with variability
+- **Rza**: Standing orientation 0.7-0.9g
+- **Duration**: 15-45 minutes per session
+
+### Stress Behavior Overlay
+- **Erratic Movement**: High variance (Fxa, Mya > 1.0 m/s², gyroscopes > 40°/s)
+- **Irregular Patterns**: Loss of rhythmic characteristics
+- **Duration**: 5-20 minutes of elevated indicators
 
 ## Quick Start
 
 ### Basic Usage
 
 ```python
-from src.simulation import SimulationEngine
+from simulation import SimulationEngine
 from datetime import datetime
 
-# Create simulation engine
+# Initialize engine
 engine = SimulationEngine(
-    animal_id="cow_001",
-    seed=42  # For reproducibility
+    baseline_temperature=38.5,
+    sampling_rate=1.0,  # 1 sample per minute
+    random_seed=42
 )
 
-# Run 24-hour simulation
-data = engine.run_simulation(
+# Generate 24 hours of continuous data
+df = engine.generate_continuous_data(
     duration_hours=24,
-    start_time=datetime(2024, 1, 1, 0, 0)
+    start_datetime=datetime.now(),
+    include_stress=True,
+    stress_probability=0.05
 )
 
 # Export to CSV
-data.to_csv('simulated_data.csv', index=False)
-
-# Get summary statistics
-stats = engine.get_summary_statistics()
-print(stats)
+engine.export_to_csv(df, 'output/simulation.csv')
 ```
 
-### Multi-Day Simulation
+### Generate Labeled Training Dataset
 
 ```python
-# Simulate one week of data
-data = engine.run_multi_day_simulation(
-    num_days=7,
-    start_time=datetime(2024, 1, 1, 0, 0)
+# Generate balanced dataset for ML training
+df = engine.generate_labeled_dataset(
+    samples_per_state=100,
+    duration_per_sample_minutes=10,
+    include_stress=True
+)
+
+print(df['state'].value_counts())
+```
+
+### Generate Single State Data
+
+```python
+from simulation import BehaviorState
+
+# Generate 30 minutes of walking data
+df = engine.generate_single_state_data(
+    state=BehaviorState.WALKING,
+    duration_minutes=30
 )
 ```
 
-### Custom Animal Profile
+### Multi-Animal Simulation
 
 ```python
-from src.simulation import AnimalProfile, SimulationEngine
+from simulation import BatchSimulator
 
-# Create custom animal with specific characteristics
-profile = AnimalProfile(
-    animal_id="cow_002",
-    baseline_temperature=38.7,  # Slightly higher baseline
-    activity_multiplier=1.2,    # 20% more active than average
-    body_size_factor=1.1,       # 10% larger than average
-    age_category="adult"
+batch = BatchSimulator(engine)
+
+# Generate data for 10 animals
+df = batch.generate_multi_animal_dataset(
+    num_animals=10,
+    hours_per_animal=24,
+    output_dir='data/simulated/animals',
+    individual_files=True
 )
-
-# Create engine with custom profile
-engine = SimulationEngine(animal_profile=profile)
-data = engine.run_simulation(duration_hours=48)
 ```
 
-### Simulating Sick Animals
+## State Transitions
+
+The simulation includes realistic state transition logic:
+
+### Transition Times
+- **Lying → Standing**: 5-15 seconds (gradual Rza increase)
+- **Standing → Walking**: 2-5 seconds (rhythm onset)
+- **Walking → Standing**: 2-5 seconds (deceleration)
+- **Ruminating transitions**: 1-3 seconds (overlay state)
+
+### Transition Probabilities
+States follow realistic transition patterns:
+- Lying tends to persist (70% stay lying)
+- Walking sessions are shorter (50% stay walking)
+- Ruminating sessions are long (70-80% stay ruminating)
+
+### Interpolation Methods
+- **Ease-in-out**: Smooth acceleration/deceleration (lying↔standing)
+- **Ease-in**: Gradual acceleration (standing→walking)
+- **Ease-out**: Gradual deceleration (walking→standing)
+
+## Sensor Data Format
+
+Generated data includes 8 sensor readings per timestamp:
+
+| Column | Description | Units | Typical Range |
+|--------|-------------|-------|---------------|
+| `timestamp` | Date and time | datetime | - |
+| `temperature` | Body temperature | °C | 36.0 - 42.0 |
+| `fxa` | Forward-backward acceleration | m/s² | -3.0 to 3.0 |
+| `mya` | Lateral acceleration | m/s² | -3.0 to 3.0 |
+| `rza` | Vertical acceleration / orientation | g | -1.5 to 1.5 |
+| `sxg` | Roll angular velocity | °/s | -100 to 100 |
+| `lyg` | Pitch angular velocity | °/s | -100 to 100 |
+| `dzg` | Yaw angular velocity | °/s | -100 to 100 |
+| `state` | Behavioral state label | string | (optional) |
+
+## Data Validation
+
+The engine includes built-in validation:
 
 ```python
-# Create profile for animal with fever and reduced activity
-sick_profile = AnimalProfile(
-    animal_id="sick_cow_001",
-    baseline_temperature=38.5,
-    fever_offset=1.5,        # +1.5°C fever
-    lethargy_factor=0.5      # 50% of normal activity
-)
+# Validate data quality
+is_valid, warnings = engine.validate_generated_data(df)
 
-engine = SimulationEngine(animal_profile=sick_profile)
-data = engine.run_simulation(duration_hours=24)
+if not is_valid:
+    for warning in warnings:
+        print(f"Warning: {warning}")
+
+# Get state statistics
+stats = engine.get_state_statistics(df)
+for state, metrics in stats.items():
+    print(f"{state}: {metrics}")
 ```
 
-## Module Structure
+## Advanced Features
 
-```
-src/simulation/
-├── __init__.py           # Module exports
-├── engine.py             # Main simulation orchestrator
-├── state_params.py       # Behavioral state definitions
-├── transitions.py        # State transition model
-├── noise.py              # Noise and variation generators
-├── temporal.py           # Circadian rhythm management
-└── README.md             # This file
-```
-
-## Components
-
-### SimulationEngine (`engine.py`)
-Main orchestrator that coordinates all simulation components:
-- Time-stepping mechanism (1-minute intervals)
-- State management and transitions
-- Sensor value generation
-- Noise and variation application
-- Data validation and export
-
-### State Parameters (`state_params.py`)
-Defines behavioral states and their sensor signatures:
-- `BehavioralState`: Enumeration of states
-- `SensorRange`: Min/max/mean/std for each parameter
-- `SensorSignature`: Complete signature for a state
-- `AnimalProfile`: Individual animal characteristics
-
-### State Transition Model (`transitions.py`)
-Probabilistic state machine for behavioral transitions:
-- Transition probability matrices
-- Duration distributions for each state
-- Smooth transition interpolation
-- Time-of-day modulation
-
-### Noise Generator (`noise.py`)
-Adds realistic sensor noise and variation:
-- Gaussian noise for each sensor type
-- Individual animal baseline variation
-- Environmental temperature effects
-- Rhythmic patterns (walking, ruminating)
-
-### Temporal Pattern Manager (`temporal.py`)
-Manages time-of-day and circadian effects:
-- Circadian temperature rhythm
-- Time-of-day behavioral preferences
-- Seasonal patterns (optional)
-
-## Configuration
-
-All simulation parameters can be customized via `config/simulation_params.yaml`:
-
-```yaml
-# Key parameters
-noise:
-  temperature_std: 0.1
-  accelerometer_std: 0.05
-  gyroscope_std: 2.0
-
-temporal:
-  transition_smoothing_time: 60.0
-  night_start: 22.0
-  night_end: 6.0
-
-simulation:
-  time_step_minutes: 1.0
-  include_validation: true
-  include_noise: true
-```
-
-## Advanced Usage
-
-### Custom Transition Probabilities
+### Custom Baseline Temperature
 
 ```python
-from src.simulation import (
-    SimulationEngine,
-    StateTransitionConfig,
-    BehavioralState
-)
-
-# Define custom transition matrix
-custom_matrix = {
-    BehavioralState.LYING: {
-        BehavioralState.LYING: 0.90,      # More lying
-        BehavioralState.STANDING: 0.08,
-        BehavioralState.WALKING: 0.01,
-        BehavioralState.RUMINATING: 0.01,
-        BehavioralState.FEEDING: 0.00,
-    },
-    # ... other states
-}
-
-# Create custom config
-config = StateTransitionConfig(
-    transition_matrix=custom_matrix,
-    duration_ranges={
-        BehavioralState.LYING: (45.0, 150.0, 90.0),
-        # ... other durations
-    }
-)
-
-# Use in simulation
-engine = SimulationEngine(transition_config=config)
+# Simulate animal with higher baseline temperature
+engine = SimulationEngine(baseline_temperature=39.0)
 ```
 
-### Custom Noise Parameters
+### Higher Sampling Rate
 
 ```python
-from src.simulation import SimulationEngine, NoiseParameters
-
-# Define custom noise levels
-noise_params = NoiseParameters(
-    temperature_std=0.05,      # Lower noise
-    accelerometer_std=0.03,
-    gyroscope_std=1.5
-)
-
-engine = SimulationEngine(noise_params=noise_params)
+# 6 samples per minute (every 10 seconds)
+engine = SimulationEngine(sampling_rate=6.0)
 ```
 
-### Accessing State Information
+### Stress Intensity Control
 
 ```python
-# During simulation, access internal state
-engine = SimulationEngine(animal_id="cow_001")
-data = engine.run_simulation(duration_hours=1)
+from simulation import StressBehaviorOverlay
 
-# Get state machine info
-state_info = engine.transition_model.get_state_info()
-print(f"Current state: {state_info['current_state']}")
-print(f"Time in state: {state_info['time_in_state']} minutes")
+# Apply variable stress intensity
+stressed = StressBehaviorOverlay.apply_stress(
+    readings,
+    stress_intensity=1.5  # 150% normal stress
+)
 ```
 
-## Output Data Format
+### Custom State Sequence
 
-The simulation generates a pandas DataFrame with the following columns:
+```python
+from simulation import StateTransitionManager
 
-### Sensor Data
-- `timestamp`: DateTime of reading
-- `animal_id`: Animal identifier
-- `temperature`: Body temperature (°C)
-- `fxa`, `mya`, `rza`: Accelerometer values (g)
-- `sxg`, `lyg`, `dzg`: Gyroscope values (°/s)
+manager = StateTransitionManager()
 
-### Metadata (optional)
-- `true_state`: Actual behavioral state (for validation)
-- `is_transitioning`: Whether in transition between states
-- `time_in_state`: Minutes in current state
+# Generate specific state sequence
+sequence = manager.get_state_sequence_probabilities(
+    sequence_length=20,
+    start_state=BehaviorState.LYING
+)
+```
 
-## Validation
+## Use Cases
 
-The engine automatically validates that all generated values fall within realistic ranges:
-- Temperature: 36.0-42.0°C
-- Accelerometers: ±2.0g
-- Gyroscopes: ±50.0°/s
+### 1. ML Model Training
+Generate labeled datasets with balanced state representation for training behavioral classification models.
 
-Validation warnings are collected and reported at the end of simulation.
+### 2. Algorithm Testing
+Create controlled test scenarios with specific behavioral patterns to validate analysis algorithms.
 
-## Literature References
+### 3. Edge Case Simulation
+Generate rare events (stress, rapid transitions) that are difficult to capture in real data.
 
-The simulation parameters are based on research literature:
+### 4. Data Augmentation
+Expand limited real datasets with synthetic data to improve model generalization.
 
-1. **Posture Detection**: Rza thresholds from accelerometer-based cattle behavior classification studies
-2. **Rumination Patterns**: 40-60 cycles/min frequency from dairy cattle research
-3. **Circadian Rhythms**: Temperature variation patterns from cattle physiology studies
-4. **Time Budgets**: State durations and transitions from cattle ethology research
-5. **Sensor Specifications**: Noise levels from commercial livestock monitoring sensors
+### 5. System Validation
+Verify that downstream analysis pipelines correctly identify known behavioral patterns.
 
-## Performance
+## Implementation Details
 
-- **Speed**: ~1000-5000 data points/second (depending on hardware)
-- **Memory**: ~100 MB for 7 days of 1-minute data
-- **Accuracy**: Validated against real cattle behavior patterns
+### Sensor Signature Generation
+Each state generator produces realistic sensor patterns using:
+- **Sinusoidal patterns**: For rhythmic behaviors (walking, chewing)
+- **Random walks**: For natural variability
+- **Clipping**: To enforce physiological constraints
+- **Noise injection**: To prevent unrealistic repetition
+
+### State Duration Sampling
+Durations are sampled from triangular distributions with:
+- Minimum and maximum bounds per state
+- Mode positioned at 60% between min and max
+- Natural skew toward typical durations
+
+### Within-State Variability
+To prevent repetitive patterns:
+- Amplitude varies per bout (e.g., different gait speeds)
+- Phase offsets for multi-axis rhythms
+- Random perturbations added to base patterns
+- Occasional "micro-events" (weight shifts, head movements)
+
+## Validation Against Literature
+
+All sensor ranges are based on documented cattle behavior research:
+
+- ✅ Lying Rza matches accelerometer studies (-0.5 to -1.0g)
+- ✅ Walking gait frequencies align with biomechanics literature (0.5-1.5 Hz)
+- ✅ Rumination rates match ethological observations (40-60 cycles/min)
+- ✅ Feeding head angles consistent with grazing posture studies (-20° to -45°)
+- ✅ Temperature ranges reflect normal bovine physiology (36-42°C)
 
 ## Examples
 
-See `config/simulation_params.yaml` for usage examples and parameter documentation.
+See `example_usage.py` for comprehensive examples including:
+1. Continuous 24-hour simulation
+2. Single state generation
+3. Labeled dataset creation
+4. Multi-animal simulation
+5. State signature comparison
+6. Data validation
+
+Run examples:
+```bash
+python -m simulation.example_usage
+```
+
+## API Reference
+
+### SimulationEngine
+
+**Constructor:**
+```python
+SimulationEngine(
+    baseline_temperature: float = 38.5,
+    sampling_rate: float = 1.0,
+    random_seed: Optional[int] = None
+)
+```
+
+**Methods:**
+- `generate_continuous_data(duration_hours, start_datetime, include_stress, stress_probability)`
+- `generate_single_state_data(state, duration_minutes, start_datetime)`
+- `generate_labeled_dataset(samples_per_state, duration_per_sample_minutes, include_stress)`
+- `validate_generated_data(df)`
+- `get_state_statistics(df)`
+- `export_to_csv(df, filepath, include_state_labels)`
+
+### State Generators
+
+All state generators inherit from `BehavioralStateGenerator`:
+
+**Methods:**
+- `generate(duration_minutes, start_time)`: Generate sensor readings
+- `sample_duration()`: Sample realistic duration for this state
+- `get_typical_duration_range()`: Get (min, max) duration bounds
+
+**Available Generators:**
+- `LyingStateGenerator`
+- `StandingStateGenerator`
+- `WalkingStateGenerator`
+- `RuminatingStateGenerator`
+- `FeedingStateGenerator`
+
+### StateTransitionManager
+
+**Methods:**
+- `get_next_state(current_state)`: Sample next state from probabilities
+- `create_transition(from_state, to_state, start_reading, end_reading)`: Interpolate transition
+- `is_valid_transition(from_state, to_state)`: Check transition validity
+- `get_state_sequence_probabilities(sequence_length, start_state)`: Generate state sequence
 
 ## Contributing
 
-When adding new features:
-1. Maintain literature-based parameter values
-2. Add appropriate validation checks
-3. Document all assumptions and sources
-4. Include unit tests for new components
+When adding new behavioral states or modifying sensor signatures:
+
+1. Reference published literature for sensor ranges
+2. Implement within-state variability to prevent repetition
+3. Define realistic duration ranges
+4. Add appropriate state transitions
+5. Include validation checks
+6. Update this documentation
+
+## License
+
+[Your license information]
+
+## References
+
+Based on sensor signatures documented in:
+- Task #169: Foundational Documentation - Behavioral Sensor Signatures
+- Task #78: Design Realistic Data Simulation Engine
 
 ## Support
 
-For questions or issues:
-1. Check configuration file documentation
-2. Review this README for usage examples
-3. Examine module docstrings for detailed API information
+For questions or issues, please [add contact information].
