@@ -1,0 +1,254 @@
+# Hybrid Behavioral Classification Pipeline Configuration
+# 
+# This file contains all configuration parameters for the integrated
+# classification pipeline including thresholds, window sizes, and
+# confidence levels for each component.
+
+# Rule-Based Classifier Configuration
+rule_classifier:
+  # Minimum consecutive samples before confirming state change
+  min_duration_samples: 2
+  
+  # Enable state transition smoothing (reduces jitter)
+  enable_smoothing: true
+  
+  # Enable rumination detection in rule classifier (FFT-based, expensive)
+  enable_rumination: false
+  
+  # Enable feeding detection in rule classifier
+  enable_feeding: true
+  
+  # Sampling rate in samples per minute
+  sampling_rate: 1.0
+  
+  # Threshold overrides (optional - leave commented to use defaults)
+  # thresholds:
+  #   lying:
+  #     rza_max: -0.5
+  #     motion_max: 0.15
+  #   standing:
+  #     rza_min: 0.7
+  #     motion_max: 0.15
+  #   walking:
+  #     rza_min: 0.5
+  #     fxa_variance_min: 0.20
+
+# ML Classifier Configuration
+ml_classifier:
+  # Use rule-based fallback if ML models not available
+  use_fallback: true
+  
+  # Minimum confidence threshold to accept ML predictions
+  confidence_threshold: 0.6
+  
+  # Model paths (relative to project root)
+  ruminating_model_path: "models/trained/ruminating_classifier.pkl"
+  feeding_model_path: "models/trained/feeding_classifier.pkl"
+  
+  # Feature extraction settings
+  feature_extraction:
+    window_size: 5
+    include_rhythmic: true
+    sampling_rate: 1.0
+
+# Stress Detector Configuration
+stress_detector:
+  # Rolling window size in minutes for variance calculation
+  window_size: 5
+  
+  # Threshold in standard deviations above baseline
+  variance_threshold_sigma: 2.0
+  
+  # Minimum number of axes that must exceed threshold
+  min_axes_threshold: 3
+  
+  # Calibration settings
+  calibration:
+    # Use calibration from normal behavior data
+    enabled: false
+    
+    # Percentile for upper baseline threshold
+    percentile: 95.0
+  
+  # Absolute variance thresholds (used if not calibrated)
+  absolute_thresholds:
+    fxa: 0.5    # g²
+    mya: 0.5    # g²
+    rza: 0.3    # g²
+    sxg: 100.0  # (°/s)²
+    lyg: 100.0  # (°/s)²
+    dzg: 100.0  # (°/s)²
+
+# State Transition Smoother Configuration
+smoother:
+  # Minimum consecutive samples before confirming state change
+  min_duration: 2
+  
+  # Sliding window size for majority voting
+  window_size: 5
+  
+  # Minimum confidence threshold to accept new state
+  confidence_threshold: 0.6
+  
+  # Enable transition probability matrix filtering
+  use_transition_matrix: true
+  
+  # Enable sliding window majority voting
+  use_sliding_window: true
+  
+  # Transition probability overrides (optional)
+  # transition_probabilities:
+  #   lying:
+  #     lying: 0.95
+  #     standing: 0.04
+  #   standing:
+  #     standing: 0.85
+  #     walking: 0.08
+
+# Pipeline Integration Configuration
+pipeline:
+  # Enable stress detection
+  enable_stress_detection: true
+  
+  # Enable state transition smoothing
+  enable_smoothing: true
+  
+  # Rule-based takes priority in conflicts (for posture states)
+  rule_priority: true
+  
+  # Feature window size for rolling statistics
+  feature_window_size: 5
+  
+  # Conflict resolution strategy
+  conflict_resolution:
+    # When rule and ML disagree, use confidence threshold
+    confidence_difference_threshold: 0.2
+    
+    # States where rule-based always takes priority
+    rule_priority_states:
+      - lying
+      - standing
+      - walking
+    
+    # States where ML takes priority
+    ml_priority_states:
+      - ruminating
+      - feeding
+  
+  # Error handling
+  error_handling:
+    # Handle missing sensor data
+    fill_missing_data: true
+    fill_method: "forward"  # forward, backward, interpolate
+    
+    # Maximum consecutive missing samples before flagging
+    max_missing_samples: 5
+    
+    # Suppress classification when sensor malfunction detected
+    suppress_on_malfunction: true
+  
+  # Performance settings
+  performance:
+    # Batch size for processing (larger = more efficient but more memory)
+    batch_size: 100
+    
+    # Enable parallel processing (if available)
+    parallel_processing: false
+    
+    # Number of worker threads (if parallel enabled)
+    num_workers: 4
+
+# Output Configuration
+output:
+  # Output format
+  format: "csv"  # csv, json, parquet
+  
+  # Columns to include in output
+  columns:
+    - timestamp
+    - state
+    - confidence
+    - is_stressed
+    - stress_score
+    - classification_source
+    - smoothing_applied
+    - sensor_quality_flag
+  
+  # Include detailed columns (for debugging)
+  include_detailed: false
+  
+  # Detailed columns (only if include_detailed is true)
+  detailed_columns:
+    - original_state
+    - rule_state
+    - rule_confidence
+    - ml_state
+    - ml_confidence
+    - stress_details
+  
+  # Output file naming
+  filename_template: "behavioral_states_{timestamp}.csv"
+  
+  # Output directory
+  output_dir: "outputs/"
+  
+  # Timestamp format for filenames
+  timestamp_format: "%Y%m%d_%H%M%S"
+
+# Logging Configuration
+logging:
+  # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  level: "INFO"
+  
+  # Log to file
+  log_to_file: true
+  
+  # Log file path
+  log_file: "logs/classification_pipeline.log"
+  
+  # Log format
+  log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # Enable performance logging
+  log_performance: true
+  
+  # Log classification conflicts
+  log_conflicts: true
+
+# Validation Configuration
+validation:
+  # Validate sensor data ranges
+  validate_ranges: true
+  
+  # Expected sensor ranges
+  sensor_ranges:
+    temperature:
+      min: 35.0
+      max: 42.0
+    fxa:
+      min: -5.0
+      max: 5.0
+    mya:
+      min: -5.0
+      max: 5.0
+    rza:
+      min: -2.0
+      max: 2.0
+    sxg:
+      min: -200.0
+      max: 200.0
+    lyg:
+      min: -200.0
+      max: 200.0
+    dzg:
+      min: -200.0
+      max: 200.0
+  
+  # Validate timestamp consistency
+  validate_timestamps: true
+  
+  # Expected sampling interval (seconds)
+  expected_interval: 60
+  
+  # Tolerance for interval variation (seconds)
+  interval_tolerance: 10
