@@ -1,261 +1,355 @@
 # Artemis Health Dashboard
 
-A comprehensive web-based dashboard for livestock health monitoring built with Streamlit.
+Interactive web-based dashboard for visualizing cattle health monitoring data from the Artemis Health system.
 
-## 🚀 Quick Start
+## Overview
+
+The dashboard provides real-time visualization and analysis of behavioral states tracked by neck-mounted sensors. Built with Streamlit and Plotly, it offers interactive charts, detailed statistics, and data export capabilities.
+
+## Features
+
+### Behavioral Timeline Visualization
+
+- **Interactive Timeline Chart**: Horizontal timeline showing behavioral states over time
+- **Time Range Selector**: Toggle between hourly (24h), daily (7d), and monthly (30d) views
+- **Color-Coded States**: Consistent color scheme for 5 behavioral states:
+  - 🔵 Lying: Blue (#4A90E2)
+  - 🟢 Standing: Green (#7ED321)
+  - 🟠 Walking: Orange (#F5A623)
+  - 🟣 Ruminating: Purple (#BD10E0)
+  - 🟡 Feeding: Yellow (#F8E71C)
+
+### Interactive Features
+
+- **Zoom**: Scroll or pinch to focus on specific time periods
+- **Pan**: Click and drag to move along the timeline
+- **Hover Tooltips**: Detailed information on state name, timestamps, duration, and confidence
+- **Export**: Download timeline data as CSV
+
+### Statistics Panel
+
+- **Duration Summaries**: Total time and percentage spent in each state
+- **State Transitions**: Count of state changes throughout the period
+- **Longest Periods**: Longest continuous duration for each behavioral state
+
+## Installation
 
 ### Prerequisites
 
-- Python 3.8 or higher
-- Required packages (see `requirements.txt` in project root)
+- Python 3.9 or higher
+- Virtual environment (recommended)
 
-### Installation
+### Required Dependencies
 
-1. Install dependencies:
 ```bash
-pip install -r requirements.txt
+pip install streamlit>=1.25.0
+pip install plotly>=5.11.0
+pip install pandas>=1.5.0
+pip install numpy>=1.23.0
 ```
 
-2. Ensure YAML support is available:
+### Optional Database Dependencies
+
+For connecting to TimescaleDB/PostgreSQL:
+
 ```bash
-pip install pyyaml
+pip install psycopg2-binary>=2.9.0
+pip install sqlalchemy>=2.0.0
 ```
 
-### Running the Dashboard
+**Note**: The dashboard works with mock data if database connection is unavailable.
 
-From the project root directory:
+## Running the Dashboard
+
+### Main Dashboard (Home Page)
 
 ```bash
 streamlit run dashboard/app.py
 ```
 
-The dashboard will open automatically in your web browser at `http://localhost:8501`.
+### Behavioral Timeline Page (Direct)
 
-## 📊 Dashboard Pages
-
-The application consists of 5 main pages accessible via sidebar navigation:
-
-### 1. Overview (Home Page)
-- **Purpose**: Real-time system status and key metrics
-- **Features**:
-  - Current temperature, activity level, and behavioral state
-  - Active alert count
-  - Recent sensor data preview
-  - System health indicators
-
-### 2. Behavioral Analysis
-- **Purpose**: Analyze cattle behavioral states and activity patterns
-- **Features**:
-  - Behavioral state distribution (lying, standing, walking, ruminating, feeding)
-  - Activity patterns (accelerometer and gyroscope data)
-  - State transition timeline
-  - Movement intensity metrics
-
-### 3. Temperature Monitoring
-- **Purpose**: Track body temperature trends and circadian rhythms
-- **Features**:
-  - Current temperature status with thresholds
-  - Temperature distribution analysis
-  - Hourly temperature patterns
-  - Circadian rhythm analysis (24-hour cycle)
-  - Temperature-related alerts
-
-### 4. Alerts Dashboard
-- **Purpose**: Monitor and manage system alerts
-- **Features**:
-  - Active alerts summary
-  - Alert breakdown by severity and type
-  - Alert history with filtering
-  - Alert statistics and trends
-  - Export functionality for alert history
-
-### 5. Health Trends
-- **Purpose**: Long-term health analysis and trend tracking
-- **Features**:
-  - Overall health score calculation
-  - Multi-component health assessment
-  - Multi-day trend analysis
-  - Health events timeline
-  - Automated health recommendations
-
-## ⚙️ Configuration
-
-Dashboard behavior is controlled by `dashboard/config.yaml`:
-
-### Key Configuration Options
-
-- **Auto-refresh**: Enable/disable automatic data refresh (default: 60 seconds)
-- **Data sources**: Configure paths to sensor data and alert logs
-- **Display settings**: Customize chart appearance and row limits
-- **Thresholds**: Set temperature and activity thresholds
-- **Color scheme**: Customize colors for states and alerts
-
-### Example Configuration
-
-```yaml
-dashboard:
-  title: "Artemis Health - Livestock Monitoring"
-  auto_refresh_interval_seconds: 60
-  layout: "wide"
-
-data_sources:
-  simulated_data_dir: "data/simulated"
-  alert_log_file: "logs/malfunction_alerts.json"
-
-metrics:
-  temperature:
-    normal_min: 38.0
-    normal_max: 39.5
-    fever_threshold: 39.5
+```bash
+streamlit run dashboard/pages/behavior_timeline.py
 ```
 
-## 📁 Project Structure
+### Using Mock Data
+
+To use simulated data for demonstration:
+
+```bash
+export USE_MOCK_DATA=true
+streamlit run dashboard/app.py
+```
+
+On Windows:
+```cmd
+set USE_MOCK_DATA=true
+streamlit run dashboard/app.py
+```
+
+## Configuration
+
+### Environment Variables
+
+The dashboard uses environment variables for configuration. Copy `.env.example` to `.env` and configure:
+
+```bash
+# Database connection (optional)
+DATABASE_URL=postgresql://username:password@localhost:5432/artemis_health
+
+# Dashboard settings
+DASHBOARD_REFRESH_INTERVAL=60
+MAX_DISPLAY_ANIMALS=50
+
+# Use mock data instead of database
+USE_MOCK_DATA=false
+```
+
+### Configuration File
+
+The `dashboard/config.py` file contains:
+
+- Behavioral state color scheme
+- Time range options
+- Chart settings
+- Performance thresholds
+- Export settings
+
+You can modify these settings to customize the dashboard appearance and behavior.
+
+## Project Structure
 
 ```
 dashboard/
-├── app.py                      # Main application entry point
-├── config.yaml                 # Dashboard configuration
+├── app.py                      # Main dashboard entry point
+├── config.py                   # Configuration constants
 ├── README.md                   # This file
-├── pages/                      # Multi-page application pages
-│   ├── 1_Overview.py          # Overview dashboard
-│   ├── 2_Behavioral_Analysis.py
-│   ├── 3_Temperature_Monitoring.py
-│   ├── 4_Alerts_Dashboard.py
-│   └── 5_Health_Trends.py
+├── pages/                      # Dashboard pages
+│   └── behavior_timeline.py   # Behavioral timeline visualization
 ├── utils/                      # Utility modules
-│   ├── __init__.py
-│   └── data_loader.py         # Data loading utilities
-└── styles/                     # Custom styling
-    └── custom.css             # CSS stylesheet
+│   ├── __init__.py            # Package initialization
+│   ├── db_connection.py       # Database connection utilities
+│   └── behavior_stats.py      # Statistics calculation functions
+├── components/                 # Reusable UI components (future)
+└── assets/                     # Static assets (future)
 ```
 
-## 🔄 Data Loading
+## Usage
 
-The dashboard loads data from:
+### Selecting a Cow
 
-1. **Sensor Data**: CSV files in `data/simulated/` or `data/processed/`
-   - Expected columns: `timestamp`, `temperature`, `fxa`, `mya`, `rza`, `sxg`, `lyg`, `dzg`
-   - Optional columns: `behavioral_state`, `cow_id`, `sensor_id`
+1. Launch the dashboard
+2. Navigate to "Behavioral Timeline" in the sidebar
+3. Select a cow ID from the dropdown menu
 
-2. **Alert Logs**: JSON files in `logs/malfunction_alerts.json`
-   - Format: One JSON object per line
-   - Required fields: `detection_time`, `severity`, `malfunction_type`
+### Choosing Time Range
 
-### Data Requirements
+Use the time range selector to view:
 
-- **Timestamps**: ISO 8601 format or Unix timestamps
-- **Temperature**: In Celsius (°C)
-- **Accelerometer**: In g-forces (g)
-- **Gyroscope**: In degrees per second (°/s)
+- **Last 24 Hours**: Minute-level data with hourly patterns
+- **Last 7 Days**: Minute-level data with daily patterns
+- **Last 30 Days**: Hourly aggregated data for better performance
 
-## 🎨 Customization
+### Interacting with the Timeline
 
-### Custom Styling
+- **Zoom In**: Scroll on the timeline or use the zoom buttons
+- **Zoom Out**: Scroll in the opposite direction or use zoom buttons
+- **Pan**: Click and drag left/right to move through time
+- **Hover**: Hover over segments to see detailed information
+- **Export Image**: Click the camera icon to download as PNG
 
-Modify `dashboard/styles/custom.css` to customize:
-- Color scheme
-- Font sizes and families
-- Card layouts
-- Responsive breakpoints
+### Exporting Data
 
-The CSS is automatically loaded by the application.
+Click the "📥 Export Timeline Data (CSV)" button to download behavioral state data including:
 
-### Session State
+- Cow ID
+- State name
+- Start timestamp
+- End timestamp
+- Duration (minutes)
+- Confidence score
 
-The dashboard uses Streamlit session state to persist:
-- Selected time ranges
-- Auto-refresh settings
-- User preferences
-- Cached data
+## Data Processing
 
-Session state is preserved across page navigation.
+### Timeline Preparation
 
-## 🔧 Features
+The dashboard consolidates consecutive identical states into single segments:
 
-### Auto-Refresh
-- Configurable refresh interval (default: 60 seconds)
-- Manual refresh button
-- Visual countdown to next refresh
-- Can be toggled on/off in sidebar
+- Groups continuous periods of the same state
+- Calculates accurate durations
+- Averages confidence scores for each segment
+- Handles transitions between states
 
-### Responsive Layout
-- Wide layout optimized for desktop
-- Responsive columns adapt to screen size
-- Mobile-friendly navigation
-- Consistent spacing and alignment
+### Performance Optimization
 
-### Error Handling
-- Graceful error messages for missing data
-- Loading states during data fetch
-- Informative warnings for configuration issues
-- Fallback to default values when needed
+For large datasets (30+ days):
 
-### Data Caching
-- Efficient data loading with TTL cache
-- Configurable cache duration (default: 5 minutes)
-- Automatic cache invalidation
+- Automatically aggregates minute-level data to hourly mode
+- Limits data points to maintain responsive rendering
+- Caches query results for 5-10 minutes
+- Uses Plotly's efficient rendering engine
 
-## 📈 Development Status
+## Statistics Calculations
 
-This is the initial infrastructure release. Current implementation includes:
+### State Durations
 
-✅ **Completed:**
-- Multi-page Streamlit application structure
-- Data loading utilities for CSV and JSON
-- Session state management
-- Auto-refresh mechanism
-- Responsive layout
-- Custom styling
-- All 5 dashboard pages with placeholder content
-- Configuration system
+Total time spent in each behavioral state, calculated by:
 
-🚧 **Planned (Subsequent Tasks):**
-- Interactive charts (Plotly/Matplotlib)
+1. Sorting data chronologically
+2. Computing time differences between consecutive records
+3. Summing durations by state
+4. Converting to percentages
+
+### State Transitions
+
+Counts the number of times the animal changed states:
+
+- Compares each consecutive pair of records
+- Increments transition counter when states differ
+- Tracks specific transition types (e.g., lying → standing)
+
+### Longest Continuous Periods
+
+Finds the longest uninterrupted duration for each state:
+
+1. Groups consecutive records of same state
+2. Calculates duration of each period
+3. Identifies maximum duration per state
+4. Records start and end timestamps
+
+## Mock Data
+
+When database connection is unavailable, the dashboard generates realistic mock data:
+
+- **Circadian Patterns**: Simulates natural daily behavioral rhythms
+- **Night (0-6h)**: Mostly lying with some ruminating
+- **Morning (6-9h)**: Standing and feeding activities
+- **Midday (9-15h)**: Ruminating and resting
+- **Afternoon (15-18h)**: Feeding and walking
+- **Evening (18-24h)**: Lying and ruminating
+
+Mock data includes realistic confidence scores, motion intensities, and state transitions.
+
+## Troubleshooting
+
+### Database Connection Issues
+
+**Problem**: "Database connection failed" warning
+
+**Solutions**:
+1. Check `DATABASE_URL` in `.env` file
+2. Verify database is running and accessible
+3. Install database drivers: `pip install psycopg2-binary`
+4. Use mock data mode: `USE_MOCK_DATA=true`
+
+### No Data for Selected Cow
+
+**Problem**: "No behavioral data found" message
+
+**Solutions**:
+1. Check if cow ID exists in database
+2. Verify time range has data
+3. Check database connectivity
+4. Use mock data to verify dashboard functionality
+
+### Slow Performance
+
+**Problem**: Chart takes long to render
+
+**Solutions**:
+1. Select shorter time range (24h instead of 30d)
+2. Dashboard automatically aggregates large datasets
+3. Clear cache with "🔄 Refresh Data" button
+4. Reduce `MAX_DISPLAY_ANIMALS` in config
+
+### Import Errors
+
+**Problem**: Module import failures
+
+**Solutions**:
+1. Ensure virtual environment is activated
+2. Install all dependencies: `pip install -r requirements.txt`
+3. Run from project root directory
+4. Check Python version (3.9+ required)
+
+## Development
+
+### Adding New Pages
+
+1. Create new page in `dashboard/pages/`
+2. Follow naming convention: `page_name.py`
+3. Import utilities from `dashboard/utils/`
+4. Use consistent styling from `config.py`
+
+### Adding New Statistics
+
+1. Add calculation function to `utils/behavior_stats.py`
+2. Update `generate_statistics_summary()` to include new stat
+3. Display in timeline page's statistics panel
+
+### Customizing Colors
+
+Modify `BEHAVIOR_COLORS` in `config.py`:
+
+```python
+BEHAVIOR_COLORS = {
+    'lying': '#YOUR_COLOR',
+    'standing': '#YOUR_COLOR',
+    # ...
+}
+```
+
+## Performance Considerations
+
+### Recommended Limits
+
+- **24-hour view**: Up to 1,440 data points (minute-level)
+- **7-day view**: Up to 10,080 data points (minute-level)
+- **30-day view**: Up to 720 data points (hourly aggregation)
+
+### Caching
+
+The dashboard uses Streamlit's caching:
+
+- Query results: 5-minute TTL
+- Cow list: 10-minute TTL
+- Clear cache with refresh button
+
+### Database Optimization
+
+For best performance with TimescaleDB:
+
+- Use indexed queries on `cow_id` and `timestamp`
+- Enable hypertable compression for old data
+- Use continuous aggregates for long-term statistics
+
+## Future Enhancements
+
+Potential features for future development:
+
+- Multi-cow comparison view
 - Real-time data streaming
-- Alert acknowledgment system
-- Export functionality (PDF reports)
-- Advanced filtering and search
-- User authentication
-- Database integration
-- Historical data comparison
+- Alert notifications panel
+- Health score integration
+- Temperature overlay on timeline
+- Prediction confidence visualization
+- Custom date range picker
+- PDF report generation
 
-## 🐛 Troubleshooting
+## Support
 
-### Dashboard won't start
-- Ensure all dependencies are installed: `pip install -r requirements.txt`
-- Check that you're running from the project root directory
-- Verify Python version is 3.8 or higher
+For issues, questions, or contributions:
 
-### No data displayed
-- Check that data files exist in configured directories
-- Verify file formats match expected schema
-- Review `data/simulated/` or `data/processed/` for CSV files
-- Check `logs/malfunction_alerts.json` for alert data
+1. Check this README for common solutions
+2. Review the main project documentation
+3. Examine example code in `pages/behavior_timeline.py`
+4. Verify environment configuration in `.env`
 
-### Auto-refresh not working
-- Check `config.yaml` for `auto_refresh_enabled: true`
-- Ensure `auto_refresh_interval_seconds` is set
-- Try toggling auto-refresh off and on in sidebar
+## License
 
-### Custom CSS not loading
-- Verify `dashboard/styles/custom.css` exists
-- Check browser console for CSS errors
-- Clear Streamlit cache: `streamlit cache clear`
+Part of the Artemis Health Livestock Monitoring System.
 
-## 📝 Notes
+---
 
-- This dashboard is designed to work with the Artemis Health data processing pipeline
-- Data is loaded from local files; database integration can be added later
-- All pages include placeholder visualizations that will be populated in subsequent development
-- The dashboard supports both simulated and real sensor data
-
-## 🔗 Related Documentation
-
-- [Streamlit Documentation](https://docs.streamlit.io/)
-- [Data Ingestion Module](../src/data_processing/README.md)
-- [Alert Generator](../src/alerts/alert_generator.py)
-- [Simulation Engine](../src/simulation/)
-
-## 📄 License
-
-Part of the Artemis Health livestock monitoring system.
+**Note**: This dashboard is designed for research and monitoring purposes. Always consult with veterinary professionals for clinical decisions.
