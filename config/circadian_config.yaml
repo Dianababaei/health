@@ -1,0 +1,233 @@
+# ============================================================
+# Circadian Rhythm Analysis Configuration
+# Configuration for cattle body temperature circadian rhythm
+# analysis system
+# ============================================================
+
+# ------------------------------------------------------------
+# Data Requirements
+# ------------------------------------------------------------
+data_requirements:
+  # Minimum days of data required for reliable rhythm extraction
+  min_days: 3.0
+  
+  # Maximum missing hours tolerated per day
+  max_missing_hours_per_day: 3
+  
+  # Expected sampling interval (minutes)
+  expected_sampling_interval_minutes: 1
+
+# ------------------------------------------------------------
+# Rhythm Parameters
+# ------------------------------------------------------------
+rhythm_parameters:
+  # Expected circadian period (hours)
+  expected_period_hours: 24.0
+  
+  # Tolerance for period detection (hours)
+  period_tolerance_hours: 2.0
+  
+  # Expected normal amplitude (°C)
+  # Healthy cattle show ±0.5°C variation
+  expected_amplitude_celsius: 0.5
+  
+  # Minimum amplitude threshold for rhythm loss detection (°C)
+  # Values below this indicate flattened rhythm
+  min_amplitude_threshold_celsius: 0.3
+  
+  # Expected peak temperature time (hour, 0-24)
+  # Literature suggests peak around 16:00 (4 PM)
+  expected_peak_hour: 16.0
+  
+  # Normal variation range from circadian prediction (°C)
+  normal_variation_celsius: 0.5
+
+# ------------------------------------------------------------
+# Rhythm Loss Detection
+# ------------------------------------------------------------
+rhythm_loss_detection:
+  # Maximum phase drift before considering unstable (hours)
+  max_phase_drift_hours: 2.0
+  
+  # Minimum duration for rhythm loss confirmation (hours)
+  min_rhythm_loss_duration_hours: 48.0
+  
+  # Minimum pattern smoothness (0.0-1.0)
+  # Values below this indicate irregular patterns
+  min_pattern_smoothness: 0.5
+  
+  # Maximum standard deviation of residuals (°C)
+  # Higher values indicate erratic variations
+  max_residual_std_celsius: 0.5
+
+# ------------------------------------------------------------
+# Health Score Calculation
+# ------------------------------------------------------------
+health_score:
+  # Component weights (must sum to 100)
+  weights:
+    amplitude: 40  # Amplitude component (0-40 points)
+    phase_stability: 20  # Phase stability (0-20 points)
+    pattern_smoothness: 20  # Pattern fit quality (0-20 points)
+    confidence: 20  # Detection confidence (0-20 points)
+  
+  # Penalty for rhythm loss (multiplier)
+  rhythm_loss_penalty: 0.5
+  
+  # Thresholds for health status
+  thresholds:
+    excellent: 85  # Score >= 85: Excellent rhythm
+    good: 70       # Score >= 70: Good rhythm
+    fair: 50       # Score >= 50: Fair rhythm
+    poor: 30       # Score >= 30: Poor rhythm
+    # Score < 30: Critical rhythm loss
+
+# ------------------------------------------------------------
+# Visualization Settings
+# ------------------------------------------------------------
+visualization:
+  # Number of points for circadian curve (hourly)
+  num_hourly_points: 24
+  
+  # Confidence interval width (°C)
+  confidence_interval_celsius: 0.2
+  
+  # Colors for different health states (hex codes)
+  colors:
+    excellent: "#28a745"  # Green
+    good: "#7cb342"       # Light green
+    fair: "#ffc107"       # Yellow
+    poor: "#ff9800"       # Orange
+    critical: "#dc3545"   # Red
+
+# ------------------------------------------------------------
+# Historical Analysis
+# ------------------------------------------------------------
+historical:
+  # Maximum days of rhythm history to retain
+  max_history_days: 30
+  
+  # Days of history for trend analysis
+  trend_analysis_days: 7
+  
+  # Update frequency (hours)
+  # How often to recalculate rhythm model with new data
+  update_frequency_hours: 24
+
+# ------------------------------------------------------------
+# FFT Analysis Settings
+# ------------------------------------------------------------
+fft_analysis:
+  # Resampling interval for FFT (hours)
+  resample_interval_hours: 1.0
+  
+  # Window type for spectral analysis
+  # Options: 'hann', 'hamming', 'blackman', 'bartlett'
+  window_type: 'hann'
+  
+  # Frequency range for peak detection (cycles per hour)
+  # For 24-hour period: 1/24 = 0.0417 Hz
+  frequency_range:
+    min: 0.035  # ~28.6 hours
+    max: 0.050  # ~20 hours
+  
+  # Signal-to-noise ratio scaling for confidence
+  snr_confidence_scale: 10.0
+
+# ------------------------------------------------------------
+# Model Fitting Settings
+# ------------------------------------------------------------
+model_fitting:
+  # Maximum function evaluations for curve fitting
+  max_function_evaluations: 5000
+  
+  # Convergence tolerance
+  tolerance: 1e-6
+  
+  # Minimum data points required for fitting
+  min_data_points: 10
+
+# ------------------------------------------------------------
+# Alert Thresholds
+# ------------------------------------------------------------
+alerts:
+  # Temperature deviation from expected (°C)
+  deviation_thresholds:
+    minor: 0.5   # Minor deviation
+    moderate: 1.0  # Moderate deviation
+    severe: 1.5   # Severe deviation
+  
+  # Rhythm health score thresholds for alerts
+  health_score_thresholds:
+    warning: 50   # Generate warning alert
+    critical: 30  # Generate critical alert
+  
+  # Consecutive low amplitude readings for alert
+  consecutive_low_amplitude_threshold: 2  # Days
+
+# ------------------------------------------------------------
+# Validation Settings
+# ------------------------------------------------------------
+validation:
+  # Expected baseline temperature range (°C)
+  baseline_temp_range:
+    min: 37.5
+    max: 39.5
+  
+  # Maximum reasonable amplitude (°C)
+  max_amplitude: 2.0
+  
+  # Phase validation (hours, 0-24)
+  # Peak should typically occur during afternoon
+  expected_phase_range:
+    min: 12.0  # Noon
+    max: 20.0  # 8 PM
+
+# ------------------------------------------------------------
+# Logging Configuration
+# ------------------------------------------------------------
+logging:
+  # Log level for circadian analysis
+  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
+  
+  # Log rhythm parameter changes
+  log_parameter_changes: true
+  
+  # Log rhythm loss events
+  log_rhythm_loss: true
+  
+  # Log visualization data generation
+  log_visualization: false
+
+# ------------------------------------------------------------
+# Performance Settings
+# ------------------------------------------------------------
+performance:
+  # Enable caching of FFT results
+  enable_caching: true
+  
+  # Cache expiration time (minutes)
+  cache_expiration_minutes: 60
+  
+  # Maximum data points to process at once
+  max_data_points: 10080  # 7 days at 1-minute intervals
+  
+  # Use parallel processing for multiple cows
+  enable_parallel_processing: false
+
+# ------------------------------------------------------------
+# Research References
+# ------------------------------------------------------------
+references:
+  - title: "Circadian rhythms in cattle body temperature"
+    authors: "Lefcourt & Adams, 1996"
+    notes: "0.3-0.5°C circadian amplitude, peak ~16:00"
+  
+  - title: "Temperature regulation in dairy cattle"
+    authors: "Kadzere et al., 2002"
+    notes: "Normal circadian patterns disrupted by illness"
+  
+  - title: "Automated health monitoring using body temperature"
+    authors: "Vickers et al., 2010"
+    notes: "Rhythm loss indicates health issues"
