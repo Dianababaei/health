@@ -1,0 +1,211 @@
+# ============================================================
+# Baseline Temperature Calculation - Configuration
+# ============================================================
+# Configuration for calculating individual baseline temperatures
+# with circadian rhythm extraction and dynamic updates.
+#
+# To use this configuration programmatically:
+#   import yaml
+#   with open('config/baseline_config.yaml') as f:
+#       config = yaml.safe_load(f)
+# ============================================================
+
+# ------------------------------------------------------------
+# Rolling Window Parameters
+# ------------------------------------------------------------
+# Multi-day windows for baseline calculation
+rolling_windows:
+  # Window sizes in days for baseline calculation
+  short_window_days: 7          # Short-term baseline (initial/recent)
+  medium_window_days: 14        # Medium-term baseline
+  long_window_days: 30          # Long-term baseline (stable reference)
+  
+  # Minimum data required for each window (days of actual data)
+  min_data_days:
+    short: 5                    # At least 5 days for 7-day window
+    medium: 10                  # At least 10 days for 14-day window
+    long: 21                    # At least 21 days for 30-day window
+  
+  # Data sampling requirements (minimum data points per day)
+  min_samples_per_day: 720      # At least 50% of expected minute-level data (1440/day)
+
+# ------------------------------------------------------------
+# Circadian Rhythm Extraction
+# ------------------------------------------------------------
+# Parameters for separating circadian variation from baseline
+circadian:
+  # Time-of-day binning for circadian profile
+  hourly_bins: 24               # 24 hourly bins (0-23)
+  
+  # Expected circadian parameters
+  expected_amplitude: 0.5       # Expected ±0.5°C daily variation
+  expected_peak_hour: 16.0      # Expected peak at 4 PM
+  expected_trough_hour: 4.0     # Expected trough at 4 AM
+  
+  # Minimum samples per hourly bin for reliable profile
+  min_samples_per_bin: 10       # At least 10 samples per hour bin
+  
+  # Circadian fitting method
+  method: "fourier"             # Options: "fourier", "binned_mean", "spline"
+  fourier_components: 2         # Number of harmonics for Fourier fit
+
+# ------------------------------------------------------------
+# Robust Statistics Parameters
+# ------------------------------------------------------------
+# Methods to reduce impact of outliers and anomalies
+robust_statistics:
+  # Primary method for baseline calculation
+  method: "trimmed_mean"        # Options: "median", "trimmed_mean", "winsorized_mean"
+  
+  # Trimmed mean parameters (remove top/bottom percentiles)
+  trim_percentage: 5.0          # Remove top and bottom 5%
+  
+  # Outlier detection for exclusion
+  outlier_method: "iqr"         # Options: "iqr", "zscore", "threshold"
+  outlier_iqr_multiplier: 1.5   # IQR multiplier for outlier detection
+  outlier_zscore_threshold: 3.0 # Z-score threshold for outlier detection
+
+# ------------------------------------------------------------
+# Anomaly Exclusion
+# ------------------------------------------------------------
+# Exclude fever periods and anomalies from baseline calculation
+anomaly_exclusion:
+  # Temperature thresholds for exclusion
+  fever_threshold: 39.5         # Exclude temperatures > 39.5°C
+  hypothermia_threshold: 37.0   # Exclude temperatures < 37.0°C (abnormal)
+  
+  # Exclude alert-triggered timeframes
+  exclude_alert_windows: true   # Exclude data during active alerts
+  alert_buffer_hours: 2         # Hours before/after alert to exclude
+  
+  # Exclude rapid temperature changes (likely artifacts)
+  max_temp_change_per_minute: 0.1  # Max °C change per minute
+  
+  # Minimum consecutive normal readings required
+  min_consecutive_normal: 30    # Minutes of consecutive normal data
+
+# ------------------------------------------------------------
+# Dynamic Baseline Updates
+# ------------------------------------------------------------
+# Parameters for daily recalculation and adaptation
+dynamic_updates:
+  # Update frequency
+  update_frequency_hours: 24    # Recalculate every 24 hours
+  
+  # Adaptive windowing strategy
+  adaptive_windowing: true      # Use adaptive window sizing
+  initial_window_days: 7        # Start with 7-day window
+  expand_after_days: 14         # Expand to 30 days after 14 days of data
+  
+  # Baseline smoothing (temporal filtering)
+  smooth_baseline_changes: true # Apply smoothing to baseline updates
+  smoothing_alpha: 0.3          # Exponential smoothing factor (0-1)
+  
+  # Maximum baseline change per update (detect sudden shifts)
+  max_baseline_change_per_day: 0.3  # Max °C change per day
+
+# ------------------------------------------------------------
+# Baseline Drift Detection
+# ------------------------------------------------------------
+# Detect gradual baseline shifts indicating chronic illness
+drift_detection:
+  # Drift threshold
+  drift_threshold: 0.5          # Alert if baseline shifts > 0.5°C
+  drift_window_days: 7          # Over 7-day period
+  
+  # Drift calculation method
+  drift_method: "linear_regression"  # Options: "linear_regression", "delta"
+  
+  # Minimum confidence for drift detection
+  min_drift_confidence: 0.7     # R² threshold for linear regression
+  
+  # Drift alert parameters
+  create_drift_alert: true      # Create alert when drift detected
+  drift_alert_severity: "warning"  # Alert severity level
+
+# ------------------------------------------------------------
+# Individual Cow Tracking
+# ------------------------------------------------------------
+# Per-cow baseline management
+individual_tracking:
+  # Cow-specific baseline storage
+  separate_baselines_per_cow: true
+  
+  # Initialization for new cows
+  new_cow_init_method: "population_mean"  # Options: "population_mean", "first_24h", "none"
+  new_cow_min_data_hours: 24   # Minimum data hours before first baseline
+  
+  # Population baseline parameters (fallback)
+  population_baseline_mean: 38.5  # Global mean baseline (°C)
+  population_baseline_std: 0.3    # Global standard deviation
+
+# ------------------------------------------------------------
+# Storage and History
+# ------------------------------------------------------------
+# Database/file storage configuration
+storage:
+  # Storage backend
+  backend: "database"           # Options: "database", "json", "csv"
+  
+  # Database table (from schema.sql)
+  table_name: "physiological_metrics"
+  
+  # History retention
+  retain_history_days: 180      # Keep 180 days of baseline history
+  
+  # Baseline metadata to store
+  store_metadata:
+    - calculation_window_days
+    - circadian_amplitude
+    - circadian_phase_at_calculation
+    - samples_used
+    - outliers_excluded
+    - drift_rate
+    - confidence_score
+  
+  # File storage paths (if using file backend)
+  baseline_history_path: "data/baseline_history"
+  baseline_log_path: "logs/baseline_calculations.log"
+
+# ------------------------------------------------------------
+# Performance and Validation
+# ------------------------------------------------------------
+performance:
+  # Calculation timeout
+  max_calculation_time_seconds: 5  # Must complete in < 5 seconds
+  
+  # Parallel processing
+  enable_parallel_processing: true  # Process multiple cows in parallel
+  max_workers: 4                    # Max parallel workers
+  
+  # Caching
+  cache_intermediate_results: true  # Cache circadian profiles
+  cache_ttl_hours: 24               # Cache time-to-live
+
+validation:
+  # Validation criteria for calculated baselines
+  min_baseline_temp: 37.5       # Minimum physiologically valid baseline
+  max_baseline_temp: 39.2       # Maximum physiologically valid baseline
+  
+  # Circadian validation
+  min_circadian_amplitude: 0.1  # Minimum expected variation
+  max_circadian_amplitude: 1.0  # Maximum expected variation
+  
+  # Stability validation (during normal periods)
+  max_baseline_variability: 0.2  # Max ±0.2°C during stable periods
+  stable_period_days: 3          # Days to assess stability
+
+# ------------------------------------------------------------
+# Logging and Debugging
+# ------------------------------------------------------------
+logging:
+  # Log level for baseline calculations
+  log_level: "INFO"             # Options: "DEBUG", "INFO", "WARNING", "ERROR"
+  
+  # Detailed logging options
+  log_calculations: true        # Log each baseline calculation
+  log_exclusions: true          # Log anomaly exclusions
+  log_drift_detection: true     # Log drift detection events
+  
+  # Performance logging
+  log_performance_metrics: true # Log calculation times and metrics
