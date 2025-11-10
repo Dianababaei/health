@@ -1,0 +1,135 @@
+# ============================================================
+# Artemis Health Dashboard Configuration
+# ============================================================
+# Configuration for the Streamlit dashboard application
+# ============================================================
+
+# ------------------------------------------------------------
+# Dashboard Settings
+# ------------------------------------------------------------
+dashboard:
+  title: "Artemis Health - Livestock Monitoring"
+  page_icon: "🐄"
+  layout: "wide"
+  initial_sidebar_state: "expanded"
+  
+  # Auto-refresh settings
+  auto_refresh_enabled: true
+  auto_refresh_interval_seconds: 60
+  
+  # Display settings
+  max_rows_display: 100
+  chart_height: 400
+  chart_theme: "streamlit"
+
+# ------------------------------------------------------------
+# Data Sources
+# ------------------------------------------------------------
+data_sources:
+  # Sensor data paths
+  simulated_data_dir: "data/simulated"
+  processed_data_dir: "data/processed"
+  raw_data_dir: "data/raw"
+  
+  # Alert logs
+  alert_log_file: "logs/malfunction_alerts.json"
+  
+  # Default data file patterns
+  sensor_data_pattern: "*.csv"
+  
+  # Data loading settings
+  max_data_points: 10000
+  default_time_range_hours: 24
+
+# ------------------------------------------------------------
+# Page Settings
+# ------------------------------------------------------------
+pages:
+  overview:
+    title: "Overview"
+    icon: "📊"
+    description: "Real-time metrics and system status"
+    
+  behavioral_analysis:
+    title: "Behavioral Analysis"
+    icon: "🐮"
+    description: "State timeline and activity patterns"
+    
+  temperature_monitoring:
+    title: "Temperature Monitoring"
+    icon: "🌡️"
+    description: "Circadian rhythm and temperature trends"
+    
+  alerts_dashboard:
+    title: "Alerts Dashboard"
+    icon: "🚨"
+    description: "Active alerts and alert history"
+    
+  health_trends:
+    title: "Health Trends"
+    icon: "📈"
+    description: "Multi-day analysis and health scores"
+
+# ------------------------------------------------------------
+# Styling
+# ------------------------------------------------------------
+styling:
+  # Color scheme
+  primary_color: "#1f77b4"
+  secondary_color: "#ff7f0e"
+  success_color: "#2ca02c"
+  warning_color: "#ffbb00"
+  danger_color: "#d62728"
+  info_color: "#17a2b8"
+  
+  # Behavioral state colors
+  state_colors:
+    lying: "#9467bd"
+    standing: "#8c564b"
+    walking: "#e377c2"
+    ruminating: "#7f7f7f"
+    feeding: "#bcbd22"
+  
+  # Alert severity colors
+  alert_colors:
+    critical: "#d62728"
+    high: "#ff7f0e"
+    medium: "#ffbb00"
+    low: "#1f77b4"
+
+# ------------------------------------------------------------
+# Metrics Configuration
+# ------------------------------------------------------------
+metrics:
+  # Temperature thresholds
+  temperature:
+    normal_min: 38.0
+    normal_max: 39.5
+    fever_threshold: 39.5
+    hypothermia_threshold: 37.5
+    
+  # Activity thresholds
+  activity:
+    low_threshold: 0.2
+    high_threshold: 0.8
+    
+  # Alert settings
+  alerts:
+    max_display: 50
+    auto_dismiss_hours: 24
+
+# ------------------------------------------------------------
+# Time Windows
+# ------------------------------------------------------------
+time_windows:
+  short_term: 1  # hours
+  medium_term: 6  # hours
+  long_term: 24  # hours
+  multi_day: 168  # hours (7 days)
+
+# ------------------------------------------------------------
+# Cache Settings
+# ------------------------------------------------------------
+cache:
+  ttl_seconds: 300  # 5 minutes
+  max_entries: 100
