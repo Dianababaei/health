@@ -1,0 +1,174 @@
+# Multi-Day Trend Analysis Configuration
+# Defines period settings and classification thresholds for temperature and activity trend analysis
+
+# Trend Analysis Periods
+periods:
+  short_term:
+    name: "short_term"
+    days: 7
+    description: "Detect acute condition recovery/decline"
+    min_data_completeness: 0.80  # Require 80% data
+    temperature_stability_threshold: 0.15  # CV threshold (15%)
+    activity_change_threshold: 0.10  # 10% change threshold
+
+  medium_term:
+    name: "medium_term"
+    days: 14
+    description: "Track post-treatment progress, estrus cycle monitoring"
+    min_data_completeness: 0.80
+    temperature_stability_threshold: 0.15
+    activity_change_threshold: 0.10
+
+  long_term:
+    name: "long_term"
+    days: 30
+    description: "Monthly health assessment, seasonal pattern identification"
+    min_data_completeness: 0.80
+    temperature_stability_threshold: 0.15
+    activity_change_threshold: 0.10
+
+  extended:
+    name: "extended"
+    days: 90
+    description: "Reproductive cycle tracking (multiple estrus cycles, pregnancy confirmation)"
+    min_data_completeness: 0.75  # Allow slightly more gaps for long periods
+    temperature_stability_threshold: 0.15
+    activity_change_threshold: 0.10
+
+# Temperature Trend Classification Thresholds
+temperature_thresholds:
+  # Coefficient of variation (CV) thresholds
+  stability:
+    improving: 0.10  # CV < 0.10 indicates good stability
+    stable: 0.15     # CV 0.10-0.15 is acceptable
+    deteriorating: 0.15  # CV > 0.15 indicates instability
+
+  # Baseline drift thresholds (°C from normal baseline)
+  drift:
+    near_baseline: 0.3   # Within ±0.3°C is normal
+    elevated: 0.5        # 0.5-0.8°C above baseline is concerning
+    fever: 0.8           # >0.8°C above baseline is fever/illness
+
+  # Anomaly frequency thresholds (events per day)
+  anomaly_frequency:
+    low: 0.5        # <0.5 anomalies/day is good
+    moderate: 1.0   # 0.5-1.0 anomalies/day is acceptable
+    high: 2.0       # >2.0 anomalies/day is concerning
+
+  # Circadian rhythm health score thresholds
+  circadian_health:
+    healthy: 0.8    # >0.8 score indicates good rhythm
+    moderate: 0.6   # 0.6-0.8 score is acceptable
+    poor: 0.6       # <0.6 score indicates disrupted rhythm
+
+# Activity Trend Classification Thresholds
+activity_thresholds:
+  # Movement intensity thresholds (normalized 0-1)
+  movement:
+    low: 0.3        # <0.3 indicates lethargy
+    normal: 0.5     # 0.3-0.7 is normal range
+    high: 0.7       # >0.7 indicates high activity
+
+  # Rest/activity ratio thresholds (lying + ruminating time)
+  rest_ratio:
+    low: 0.3        # <0.3 indicates insufficient rest
+    optimal: 0.5    # 0.4-0.6 is optimal
+    excessive: 0.7  # >0.7 indicates excessive rest (illness)
+
+  # Behavioral diversity thresholds (Shannon entropy, normalized)
+  diversity:
+    low: 0.4        # <0.4 indicates limited behavior repertoire
+    normal: 0.6     # 0.4-0.7 is normal
+    high: 0.7       # >0.7 indicates varied healthy behaviors
+
+  # State transition frequency (transitions per day)
+  transitions:
+    low: 50         # <50 transitions/day (stuck behaviors)
+    normal: 100     # 50-200 transitions/day is normal
+    high: 200       # >200 transitions/day (restless)
+
+# Health Trajectory Classification Rules
+# Maps (temperature_direction, activity_direction) → trajectory
+health_trajectory_rules:
+  strong_improvement:
+    temperature: "improving"
+    activity: "improving"
+    description: "Both metrics show improvement - positive recovery"
+
+  moderate_improvement:
+    conditions:
+      - temperature: "improving"
+        activity: "stable"
+      - temperature: "stable"
+        activity: "improving"
+    description: "One metric improving, one stable"
+
+  stable:
+    temperature: "stable"
+    activity: "stable"
+    description: "Both metrics stable - maintain monitoring"
+
+  moderate_decline:
+    conditions:
+      - temperature: "deteriorating"
+        activity: "stable"
+      - temperature: "stable"
+        activity: "deteriorating"
+    description: "One metric deteriorating - increase monitoring"
+
+  significant_decline:
+    temperature: "deteriorating"
+    activity: "deteriorating"
+    description: "Both metrics deteriorating - veterinary review recommended"
+
+# Confidence Score Adjustments
+confidence_factors:
+  # Data completeness impact
+  data_completeness:
+    high: 1.0      # 100% data = no adjustment
+    medium: 0.9    # 80-99% data = slight reduction
+    low: 0.7       # <80% data = significant reduction
+
+  # Variance consistency impact
+  variance:
+    low_cv: 1.1    # Low CV increases confidence (up to 10%)
+    high_cv: 0.8   # High CV reduces confidence
+
+  # Circadian health impact
+  circadian:
+    healthy: 1.1   # Good circadian increases confidence
+    poor: 0.9      # Poor circadian reduces confidence
+
+# Performance Requirements
+performance:
+  max_processing_time_seconds: 2.0  # All 4 trends must complete within 2 seconds
+  cache_trends: true                 # Cache trend calculations for repeated queries
+  cache_ttl_minutes: 15              # Refresh trends every 15 minutes
+
+# Recommendations Generation
+recommendations:
+  # Enable/disable recommendation generation
+  enabled: true
+
+  # Recommendation templates by trajectory
+  templates:
+    significant_decline:
+      - "URGENT: Veterinary review recommended"
+      - "Consider immediate health assessment"
+
+    moderate_decline:
+      - "Monitor closely for further deterioration"
+      - "Review recent treatments or environmental changes"
+
+    strong_improvement:
+      - "Positive recovery trend - continue current treatment"
+      - "Consider reducing monitoring frequency if sustained"
+
+  # Thresholds for specific recommendations
+  alert_thresholds:
+    high_anomaly_frequency: 2.0  # Trigger recommendation if >2 anomalies/day
+    severe_drift: 0.5            # Trigger recommendation if >0.5°C drift
+    high_variance: 0.15          # Trigger recommendation if CV >0.15
+    low_diversity: 0.3           # Trigger recommendation if diversity <0.3
+    excessive_rest: 0.7          # Trigger recommendation if rest ratio >0.7
+    insufficient_rest: 0.3       # Trigger recommendation if rest ratio <0.3

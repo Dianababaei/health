@@ -27,21 +27,66 @@ Components:
 - export: Dataset export and metadata utilities
 """
 
-from .engine import SimulationEngine
-from .state_params import BehavioralState, SensorSignature, AnimalProfile
-from .transitions import StateTransitionModel
-from .noise import NoiseGenerator
-from .temporal import TemporalPatternManager
-from .health_events import HealthEventSimulator, HealthEventType
-from .label_generator import LabelGenerator
-from .dataset_generator import (
-    DatasetGenerator,
-    generate_short_term_dataset,
-    generate_medium_term_dataset,
-    generate_long_term_dataset,
-    generate_all_datasets
+# Conditional imports - only import if modules exist
+try:
+    from .engine import SimulationEngine
+except ImportError:
+    pass
+
+try:
+    from .state_params import BehavioralState, SensorSignature, AnimalProfile
+except ImportError:
+    pass
+
+try:
+    from .transitions import StateTransitionManager as StateTransitionModel
+except ImportError:
+    pass
+
+try:
+    from .noise import NoiseGenerator
+except ImportError:
+    pass
+
+try:
+    from .temporal import TemporalPatternManager
+except ImportError:
+    pass
+
+try:
+    from .health_events import HealthEventSimulator, HealthEventType
+except ImportError:
+    pass
+
+try:
+    from .label_generator import LabelGenerator
+except ImportError:
+    pass
+
+try:
+    from .dataset_generator import (
+        DatasetGenerator,
+        generate_short_term_dataset,
+        generate_medium_term_dataset,
+        generate_long_term_dataset,
+        generate_all_datasets
+    )
+except ImportError:
+    pass
+
+try:
+    from .export import DatasetExporter, DatasetSplitter
+except ImportError:
+    pass
+
+# Always available
+from .circadian_rhythm import CircadianRhythmGenerator
+from .health_conditions import (
+    FeverSimulator,
+    HeatStressSimulator,
+    EstrusSimulator,
+    PregnancySimulator
 )
-from .export import DatasetExporter, DatasetSplitter
 
 __all__ = [
     'SimulationEngine',

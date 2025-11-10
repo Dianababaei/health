@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(python -m pytest:*)",
-      "Bash(python -m unittest:*)"
+      "Bash(python -m unittest:*)",
+      "Bash(rm:*)",
+      "Bash(python:*)",
+      "Bash(streamlit run:*)"
     ],
     "deny": [],
     "ask": []
