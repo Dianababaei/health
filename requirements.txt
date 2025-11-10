@@ -25,10 +25,17 @@ plotly>=5.11.0
 # Dashboard
 # ------------------------------------------------------------
 streamlit>=1.25.0
-pyyaml>=6.0
 
 # ------------------------------------------------------------
 # Analysis
 # ------------------------------------------------------------
 scipy>=1.9.0
 statsmodels>=0.14.0
+
+# ------------------------------------------------------------
+# Database (Optional - for dashboard connectivity)
+# ------------------------------------------------------------
+# psycopg2-binary>=2.9.0  # PostgreSQL/TimescaleDB driver
+# sqlalchemy>=2.0.0       # SQL toolkit and ORM
+# Note: Uncomment above if using database connection
+# Dashboard works with mock data if database is unavailable
