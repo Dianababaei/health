@@ -1,6 +1,7 @@
 """
 Health Intelligence Module
 
+<<<<<<< HEAD
 Provides alert logging, state management, trend tracking, and health intelligence
 components for the Artemis Health livestock monitoring system.
 
@@ -20,13 +21,24 @@ from .trend_tracker import (
     TimeWindowMetrics,
     HealthTrendReport
 )
+=======
+Provides health scoring, alert detection, and intelligent health analysis
+for the Artemis Health monitoring system.
+"""
+
+from .alert_system import AlertSystem, AlertState, AlertStatus, AlertPriority
+>>>>>>> 27759dc60d8adda17a1542bda67e6dae6f27db9e
 
 __all__ = [
-    'AlertLogger',
-    'AlertStateManager',
+    'AlertSystem',
+    'AlertState',
     'AlertStatus',
+<<<<<<< HEAD
     'MultiDayHealthTrendTracker',
     'TrendIndicator',
     'TimeWindowMetrics',
     'HealthTrendReport',
+=======
+    'AlertPriority',
+>>>>>>> 27759dc60d8adda17a1542bda67e6dae6f27db9e
 ]
