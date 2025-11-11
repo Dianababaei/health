@@ -11,3 +11,17 @@ Sub-analyses:
 - Health scoring (0-100 scale)
 - Automated alert system
 """
+
+from .reproductive_cycle_tracker import (
+    ReproductiveCycleTracker,
+    EstrusRecord,
+    PregnancyRecord,
+    ReproductiveCycleState
+)
+
+__all__ = [
+    'ReproductiveCycleTracker',
+    'EstrusRecord',
+    'PregnancyRecord',
+    'ReproductiveCycleState'
+]
