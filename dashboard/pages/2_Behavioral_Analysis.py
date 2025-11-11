@@ -2,8 +2,8 @@
 Behavioral Analysis Page - Artemis Health Dashboard
 
 Displays behavioral state timeline, activity patterns, and state transitions.
-This is a placeholder page that will be populated with detailed visualizations
-by subsequent development tasks.
+Features comprehensive activity and behavior monitoring charts with movement
+intensity analysis, activity vs rest comparisons, and historical baselines.
 """
 
 import streamlit as st
@@ -15,6 +15,15 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from dashboard.utils.data_loader import load_config, DataLoader
+from dashboard.components.activity_charts import (
+    calculate_movement_intensity,
+    create_movement_intensity_chart,
+    create_activity_rest_bar_chart,
+    create_daily_activity_heatmap,
+    create_historical_comparison_chart,
+    get_activity_summary_stats,
+    calculate_historical_baseline
+)
 
 # Page configuration
 st.set_page_config(
@@ -39,23 +48,36 @@ st.markdown("*Analyze cattle behavioral states and activity patterns*")
 st.markdown("---")
 
 # Time range selector
-col1, col2, col3 = st.columns([2, 1, 1])
+col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
 with col1:
     time_range_options = {
-        "Last 1 hour": 1,
-        "Last 6 hours": 6,
         "Last 24 hours": 24,
         "Last 3 days": 72,
         "Last 7 days": 168,
+        "Last 14 days": 336,
+        "Last 30 days": 720,
     }
     selected_label = st.selectbox(
         "Select Time Range",
         options=list(time_range_options.keys()),
-        index=2,
+        index=0,
     )
     selected_time_range = time_range_options[selected_label]
 
 with col2:
+    baseline_options = {
+        "7 days": 7,
+        "14 days": 14,
+        "30 days": 30,
+    }
+    baseline_label = st.selectbox(
+        "Historical Baseline",
+        options=list(baseline_options.keys()),
+        index=0,
+    )
+    baseline_days = baseline_options[baseline_label]
+
+with col3:
     if st.button("🔄 Refresh Data", use_container_width=True):
         st.rerun()
 
@@ -70,8 +92,203 @@ with st.spinner("Loading behavioral data..."):
         )
         
         if not behavioral_data.empty:
+            # Calculate movement intensity
+            if all(col in behavioral_data.columns for col in ['fxa', 'mya', 'rza']):
+                behavioral_data = calculate_movement_intensity(behavioral_data)
+            
+            # Get summary statistics
+            summary_stats = get_activity_summary_stats(behavioral_data)
+            
+            # ========================================================================
+            # Activity Summary Cards
+            # ========================================================================
+            st.subheader("📊 Activity Summary")
+            
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                if 'avg_intensity' in summary_stats:
+                    st.metric(
+                        "Avg Movement Intensity",
+                        f"{summary_stats['avg_intensity']:.3f}",
+                        delta=None
+                    )
+                else:
+                    st.metric("Avg Movement Intensity", "N/A")
+            
+            with col2:
+                if 'active_percentage' in summary_stats:
+                    st.metric(
+                        "Active Time",
+                        f"{summary_stats['active_percentage']:.1f}%",
+                        delta=None
+                    )
+                else:
+                    st.metric("Active Time", "N/A")
+            
+            with col3:
+                if 'rest_percentage' in summary_stats:
+                    st.metric(
+                        "Rest Time",
+                        f"{summary_stats['rest_percentage']:.1f}%",
+                        delta=None
+                    )
+                else:
+                    st.metric("Rest Time", "N/A")
+            
+            with col4:
+                if 'stress_periods' in summary_stats:
+                    st.metric(
+                        "Elevated Activity Events",
+                        f"{summary_stats['stress_periods']}",
+                        delta=None
+                    )
+                else:
+                    st.metric("Elevated Activity Events", "N/A")
+            
+            st.markdown("---")
+            
+            # ========================================================================
+            # Movement Intensity Time-Series Chart
+            # ========================================================================
+            st.subheader("📈 Movement Intensity Over Time")
+            
+            if 'movement_intensity' in behavioral_data.columns:
+                # Calculate baseline for comparison
+                baseline = calculate_historical_baseline(
+                    behavioral_data,
+                    baseline_days=baseline_days
+                )
+                
+                # Create chart
+                intensity_fig = create_movement_intensity_chart(
+                    behavioral_data,
+                    title=f"Movement Intensity - Last {selected_label}",
+                    show_stress_markers=True,
+                    baseline=baseline
+                )
+                
+                st.plotly_chart(intensity_fig, use_container_width=True)
+                
+                # Show baseline info
+                if baseline and 'avg_intensity' in baseline:
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric(
+                            f"Baseline Avg ({baseline_days}d)",
+                            f"{baseline['avg_intensity']:.3f}"
+                        )
+                    with col2:
+                        st.metric(
+                            f"Baseline Std Dev",
+                            f"{baseline.get('std_intensity', 0):.3f}"
+                        )
+                    with col3:
+                        st.metric(
+                            f"Baseline Range",
+                            f"{baseline.get('min_intensity', 0):.3f} - {baseline.get('max_intensity', 0):.3f}"
+                        )
+            else:
+                st.warning("⚠️ Movement intensity data not available. Need fxa, mya, rza columns.")
+            
+            st.markdown("---")
+            
+            # ========================================================================
+            # Activity vs Rest Duration Charts
+            # ========================================================================
+            st.subheader("⚖️ Activity vs Rest Duration")
+            
+            if 'behavioral_state' in behavioral_data.columns:
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Daily aggregation
+                    daily_chart = create_activity_rest_bar_chart(
+                        behavioral_data,
+                        aggregation='daily',
+                        title="Daily Activity vs Rest"
+                    )
+                    st.plotly_chart(daily_chart, use_container_width=True)
+                
+                with col2:
+                    # Hourly aggregation (for shorter time ranges)
+                    if selected_time_range <= 72:  # 3 days or less
+                        hourly_chart = create_activity_rest_bar_chart(
+                            behavioral_data,
+                            aggregation='hourly',
+                            title="Hourly Activity vs Rest"
+                        )
+                        st.plotly_chart(hourly_chart, use_container_width=True)
+                    else:
+                        st.info("💡 Hourly view available for time ranges up to 3 days. Daily view shown instead.")
+                        daily_chart_2 = create_activity_rest_bar_chart(
+                            behavioral_data,
+                            aggregation='daily',
+                            title="Daily Activity vs Rest"
+                        )
+                        st.plotly_chart(daily_chart_2, use_container_width=True)
+            else:
+                st.warning("⚠️ Behavioral state data not available for activity/rest analysis")
+            
+            st.markdown("---")
+            
+            # ========================================================================
+            # Daily Activity Pattern Heatmap
+            # ========================================================================
+            st.subheader("🌡️ Daily Activity Pattern (24-Hour View)")
+            
+            if 'movement_intensity' in behavioral_data.columns and selected_time_range >= 24:
+                heatmap_fig = create_daily_activity_heatmap(
+                    behavioral_data,
+                    title="Activity Intensity by Hour of Day"
+                )
+                st.plotly_chart(heatmap_fig, use_container_width=True)
+                
+                st.info("""
+                📖 **How to read this chart:**
+                - Each row represents a day
+                - Each column represents an hour (0-23)
+                - Darker colors indicate higher movement intensity
+                - Look for patterns: cattle typically rest at night (darker on left/right) and are active during day
+                """)
+            elif selected_time_range < 24:
+                st.info("ℹ️ Select a time range of at least 24 hours to view daily activity patterns")
+            else:
+                st.warning("⚠️ Movement intensity data not available for heatmap")
+            
+            st.markdown("---")
+            
+            # ========================================================================
+            # Historical Comparison
+            # ========================================================================
+            st.subheader("📊 Historical Comparison")
+            
+            if 'movement_intensity' in behavioral_data.columns and selected_time_range >= 24:
+                comparison_fig = create_historical_comparison_chart(
+                    behavioral_data,
+                    baseline_days=baseline_days,
+                    title=f"Current Activity vs {baseline_days}-Day Historical Average"
+                )
+                st.plotly_chart(comparison_fig, use_container_width=True)
+                
+                st.info("""
+                📖 **How to read this chart:**
+                - Gray dashed line: Historical average activity by hour of day
+                - Blue solid line: Current (last 24h) activity by hour of day
+                - Compare patterns to identify deviations from normal behavior
+                - Significant deviations may indicate health issues or environmental changes
+                """)
+            elif selected_time_range < 24:
+                st.info("ℹ️ Select a time range of at least 24 hours to view historical comparison")
+            else:
+                st.warning("⚠️ Movement intensity data not available for comparison")
+            
+            st.markdown("---")
+            
+            # ========================================================================
             # Behavioral State Distribution
-            st.subheader("📊 Behavioral State Distribution")
+            # ========================================================================
+            st.subheader("📋 Behavioral State Distribution")
             
             if 'behavioral_state' in behavioral_data.columns:
                 state_counts = behavioral_data['behavioral_state'].value_counts()
@@ -79,126 +296,77 @@ with st.spinner("Loading behavioral data..."):
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    st.markdown("**State Counts**")
+                    st.markdown("**State Breakdown**")
                     for state, count in state_counts.items():
                         percentage = (count / len(behavioral_data)) * 100
-                        st.markdown(f"- **{state.capitalize()}**: {count} ({percentage:.1f}%)")
+                        st.markdown(f"- **{state.capitalize()}**: {count} records ({percentage:.1f}%)")
                 
                 with col2:
-                    st.markdown("**State Distribution**")
-                    # Placeholder for chart
-                    st.info("📊 Pie chart will be added here showing state distribution")
+                    st.markdown("**State Transitions**")
+                    if 'state_transitions' in summary_stats:
+                        st.metric("Total Transitions", summary_stats['state_transitions'])
+                        
+                        # Show recent state changes
+                        if 'timestamp' in behavioral_data.columns:
+                            behavioral_data_sorted = behavioral_data.sort_values('timestamp')
+                            state_changes = behavioral_data_sorted[
+                                behavioral_data_sorted['behavioral_state'] != behavioral_data_sorted['behavioral_state'].shift(1)
+                            ]
+                            
+                            if len(state_changes) > 0:
+                                st.markdown(f"**Recent Changes:** {len(state_changes.tail(10))} shown")
+                            else:
+                                st.info("No state changes detected")
             else:
                 st.warning("⚠️ Behavioral state data not available in dataset")
             
             st.markdown("---")
             
-            # Activity Patterns
-            st.subheader("📈 Activity Patterns")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("**Accelerometer Activity**")
-                if all(col in behavioral_data.columns for col in ['fxa', 'mya', 'rza']):
-                    avg_fxa = behavioral_data['fxa'].mean()
-                    avg_mya = behavioral_data['mya'].mean()
-                    avg_rza = behavioral_data['rza'].mean()
-                    
-                    st.markdown(f"- **Forward (fxa)**: {avg_fxa:.3f} g")
-                    st.markdown(f"- **Lateral (mya)**: {avg_mya:.3f} g")
-                    st.markdown(f"- **Vertical (rza)**: {avg_rza:.3f} g")
-                    
-                    st.info("📈 Time series chart will be added here")
-                else:
-                    st.warning("⚠️ Accelerometer data not available")
-            
-            with col2:
-                st.markdown("**Gyroscope Activity**")
-                if all(col in behavioral_data.columns for col in ['sxg', 'lyg', 'dzg']):
-                    avg_sxg = behavioral_data['sxg'].mean()
-                    avg_lyg = behavioral_data['lyg'].mean()
-                    avg_dzg = behavioral_data['dzg'].mean()
-                    
-                    st.markdown(f"- **Roll (sxg)**: {avg_sxg:.2f} °/s")
-                    st.markdown(f"- **Pitch (lyg)**: {avg_lyg:.2f} °/s")
-                    st.markdown(f"- **Yaw (dzg)**: {avg_dzg:.2f} °/s")
-                    
-                    st.info("📈 Time series chart will be added here")
-                else:
-                    st.warning("⚠️ Gyroscope data not available")
-            
-            st.markdown("---")
-            
-            # State Timeline
-            st.subheader("🕐 Behavioral State Timeline")
-            st.info("📊 Interactive timeline chart showing state transitions over time will be added here")
-            
-            # Show recent state changes
-            if 'behavioral_state' in behavioral_data.columns and 'timestamp' in behavioral_data.columns:
-                # Detect state changes
-                behavioral_data_sorted = behavioral_data.sort_values('timestamp')
-                state_changes = behavioral_data_sorted[
-                    behavioral_data_sorted['behavioral_state'] != behavioral_data_sorted['behavioral_state'].shift(1)
-                ]
+            # ========================================================================
+            # Detailed Statistics
+            # ========================================================================
+            with st.expander("📊 View Detailed Statistics"):
+                col1, col2 = st.columns(2)
                 
-                if len(state_changes) > 0:
-                    st.markdown("**Recent State Changes:**")
-                    recent_changes = state_changes.tail(10)[['timestamp', 'behavioral_state']]
-                    st.dataframe(recent_changes, use_container_width=True, hide_index=True)
-                else:
-                    st.info("No state changes detected in selected time range")
-            
-            st.markdown("---")
-            
-            # Activity Metrics Summary
-            st.subheader("📋 Activity Metrics Summary")
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.markdown("**Movement Intensity**")
-                if all(col in behavioral_data.columns for col in ['fxa', 'mya', 'rza']):
-                    movement_magnitude = (
-                        behavioral_data[['fxa', 'mya', 'rza']].pow(2).sum(axis=1).apply(lambda x: x**0.5)
-                    )
-                    avg_movement = movement_magnitude.mean()
-                    max_movement = movement_magnitude.max()
+                with col1:
+                    st.markdown("**Movement Statistics**")
+                    if 'avg_intensity' in summary_stats:
+                        st.write(f"- Average Intensity: {summary_stats['avg_intensity']:.3f}")
+                        st.write(f"- Std Deviation: {summary_stats.get('std_intensity', 0):.3f}")
+                        st.write(f"- Min Intensity: {summary_stats.get('min_intensity', 0):.3f}")
+                        st.write(f"- Max Intensity: {summary_stats.get('max_intensity', 0):.3f}")
                     
-                    st.metric("Average", f"{avg_movement:.3f}")
-                    st.metric("Maximum", f"{max_movement:.3f}")
-                else:
-                    st.info("N/A")
-            
-            with col2:
-                st.markdown("**Rotation Intensity**")
-                if all(col in behavioral_data.columns for col in ['sxg', 'lyg', 'dzg']):
-                    rotation_magnitude = (
-                        behavioral_data[['sxg', 'lyg', 'dzg']].pow(2).sum(axis=1).apply(lambda x: x**0.5)
-                    )
-                    avg_rotation = rotation_magnitude.mean()
-                    max_rotation = rotation_magnitude.max()
+                    st.markdown("**Activity Breakdown**")
+                    if 'active_count' in summary_stats:
+                        st.write(f"- Active Records: {summary_stats['active_count']}")
+                        st.write(f"- Rest Records: {summary_stats['rest_count']}")
+                        st.write(f"- Active %: {summary_stats['active_percentage']:.1f}%")
+                        st.write(f"- Rest %: {summary_stats['rest_percentage']:.1f}%")
+                
+                with col2:
+                    st.markdown("**Data Summary**")
+                    st.write(f"- Total Records: {summary_stats.get('total_records', 0)}")
+                    if 'time_span_hours' in summary_stats:
+                        st.write(f"- Time Span: {summary_stats['time_span_hours']:.1f} hours")
+                    if 'state_transitions' in summary_stats:
+                        st.write(f"- State Transitions: {summary_stats['state_transitions']}")
                     
-                    st.metric("Average", f"{avg_rotation:.2f} °/s")
-                    st.metric("Maximum", f"{max_rotation:.2f} °/s")
-                else:
-                    st.info("N/A")
-            
-            with col3:
-                st.markdown("**Data Summary**")
-                st.metric("Total Records", len(behavioral_data))
-                if 'timestamp' in behavioral_data.columns:
-                    time_span = (
-                        behavioral_data['timestamp'].max() - behavioral_data['timestamp'].min()
-                    ).total_seconds() / 3600
-                    st.metric("Time Span", f"{time_span:.1f} hours")
-            
-            st.markdown("---")
+                    st.markdown("**Stress Indicators**")
+                    if 'stress_periods' in summary_stats:
+                        st.write(f"- Elevated Activity Events: {summary_stats['stress_periods']}")
+                        st.write(f"- Stress %: {summary_stats.get('stress_percentage', 0):.1f}%")
             
             # Raw Data Table
             with st.expander("📋 View Raw Behavioral Data"):
+                display_cols = ['timestamp', 'behavioral_state']
+                if 'movement_intensity' in behavioral_data.columns:
+                    display_cols.append('movement_intensity')
+                if 'temperature' in behavioral_data.columns:
+                    display_cols.append('temperature')
+                
+                display_data = behavioral_data[display_cols].tail(100) if all(c in behavioral_data.columns for c in display_cols) else behavioral_data.tail(100)
                 st.dataframe(
-                    behavioral_data.tail(50),
+                    display_data,
                     use_container_width=True,
                     hide_index=True,
                 )
@@ -209,15 +377,6 @@ with st.spinner("Loading behavioral data..."):
         
     except Exception as e:
         st.error(f"❌ Error loading behavioral data: {str(e)}")
-
-# Placeholder notice
-st.markdown("---")
-st.info("""
-**📝 Note**: This is a placeholder page. Detailed visualizations including:
-- Interactive state timeline charts
-- Activity pattern heatmaps
-- State transition diagrams
-- Behavioral anomaly detection
-
-...will be added in subsequent development tasks.
-""")
+        import traceback
+        with st.expander("Error Details"):
+            st.code(traceback.format_exc())
