@@ -1,0 +1,240 @@
+# ============================================================
+# Immediate Alert Detection Thresholds Configuration
+# ============================================================
+# Configurable thresholds for real-time health alert detection.
+# Supports per-animal customization for precision monitoring.
+#
+# Alert Types:
+# 1. Fever Alert: High temperature with reduced motion
+# 2. Heat Stress Alert: High temperature with high activity
+# 3. Prolonged Inactivity Alert: Extended stillness
+# 4. Sensor Malfunction Alert: Data quality issues
+# ============================================================
+
+# ------------------------------------------------------------
+# Fever Alert Thresholds
+# ------------------------------------------------------------
+fever_alert:
+  # Temperature threshold (°C)
+  temperature_threshold: 39.5          # Alert if temp > 39.5°C
+  
+  # Motion intensity threshold (normalized 0-1 scale)
+  # Motion calculated as sqrt(fxa² + mya² + rza²)
+  motion_threshold: 0.15               # Alert if motion < 0.15 (reduced movement)
+  
+  # Confirmation window (minutes)
+  confirmation_window_minutes: 2       # Require 2 consecutive minutes
+  
+  # Minimum samples required for confirmation
+  min_samples_for_confirmation: 2      # At least 2 readings in window
+  
+  # Severity classification
+  severity:
+    critical_temp: 40.0                # Critical if temp > 40.0°C
+    warning_temp: 39.5                 # Warning if 39.5-40.0°C
+  
+  # Alert deduplication window (minutes)
+  deduplication_window_minutes: 30     # Don't repeat alert for 30 minutes
+
+# ------------------------------------------------------------
+# Heat Stress Alert Thresholds
+# ------------------------------------------------------------
+heat_stress_alert:
+  # Temperature threshold (°C)
+  temperature_threshold: 39.0          # Alert if temp > 39.0°C
+  
+  # Activity level threshold (normalized 0-1 scale)
+  # High activity calculated from movement intensity + behavioral state
+  activity_threshold: 0.60             # Alert if activity > 0.60 (high activity)
+  
+  # Confirmation window (minutes)
+  confirmation_window_minutes: 2       # Require 2 consecutive minutes
+  
+  # Minimum samples required for confirmation
+  min_samples_for_confirmation: 2      # At least 2 readings in window
+  
+  # Severity classification
+  severity:
+    critical_temp: 39.8                # Critical if temp > 39.8°C
+    warning_temp: 39.0                 # Warning if 39.0-39.8°C
+  
+  # Alert deduplication window (minutes)
+  deduplication_window_minutes: 30     # Don't repeat alert for 30 minutes
+  
+  # Environmental factors (optional adjustments)
+  adjust_for_ambient: false            # Future: adjust thresholds based on ambient temp
+
+# ------------------------------------------------------------
+# Prolonged Inactivity Alert Thresholds
+# ------------------------------------------------------------
+inactivity_alert:
+  # Stillness detection thresholds (g-force units)
+  # All three axes must be below threshold
+  fxa_threshold: 0.05                  # Fore-aft acceleration threshold
+  mya_threshold: 0.05                  # Medial-lateral acceleration threshold
+  rza_threshold: 0.05                  # Vertical acceleration threshold
+  
+  # Inactivity duration threshold (hours)
+  duration_threshold_hours: 4.0        # Alert after 4 hours of stillness
+  
+  # Maximum allowed brief movements (minutes per hour)
+  max_movement_minutes_per_hour: 5     # Allow up to 5 min/hour of brief movement
+  
+  # Rest period exclusion (based on Layer 1 behavioral states)
+  exclude_lying_state: true            # Don't alert during normal lying/rest
+  exclude_ruminating_state: true       # Don't alert during ruminating
+  
+  # Normal rest period time windows (hours, 24-hour format)
+  normal_rest_periods:
+    - start_hour: 22                   # 10 PM
+      end_hour: 6                      # 6 AM
+  
+  # Severity classification
+  severity:
+    critical_hours: 8.0                # Critical if inactive > 8 hours
+    warning_hours: 4.0                 # Warning if inactive 4-8 hours
+  
+  # Alert deduplication window (minutes)
+  deduplication_window_minutes: 60     # Don't repeat alert for 1 hour
+
+# ------------------------------------------------------------
+# Sensor Malfunction Alert Thresholds
+# ------------------------------------------------------------
+# Note: Integrates with existing malfunction_detection.py
+sensor_malfunction_alert:
+  # Connectivity loss (no data received)
+  connectivity_loss:
+    gap_threshold_minutes: 5           # Alert if no data > 5 minutes
+    severity: "critical"
+  
+  # Stuck values (identical readings)
+  stuck_values:
+    duration_threshold_minutes: 120    # Alert if stuck > 2 hours
+    float_tolerance: 0.001             # Tolerance for float comparison
+    severity: "warning"
+  
+  # Out-of-range values
+  out_of_range:
+    temperature:
+      min: 35.0                        # Minimum valid temperature (°C)
+      max: 42.0                        # Maximum valid temperature (°C)
+      severity: "warning"
+    
+    acceleration:  # fxa, mya, rza
+      min: -2.0                        # Minimum valid g-force
+      max: 2.0                         # Maximum valid g-force
+      severity: "warning"
+    
+    angular_velocity:  # sxg, lyg, dzg
+      min: -250.0                      # Minimum valid degrees/sec
+      max: 250.0                       # Maximum valid degrees/sec
+      severity: "warning"
+  
+  # Alert deduplication window (minutes)
+  deduplication_window_minutes: 15     # Don't repeat alert for 15 minutes
+
+# ------------------------------------------------------------
+# Alert Confidence Scoring
+# ------------------------------------------------------------
+confidence_scoring:
+  # Base confidence by alert type
+  base_confidence:
+    fever: 0.85                        # High confidence for fever detection
+    heat_stress: 0.80                  # Good confidence for heat stress
+    inactivity: 0.75                   # Moderate confidence (false positives possible)
+    sensor_malfunction: 0.95           # Very high confidence for technical issues
+  
+  # Confidence adjustments
+  adjustments:
+    # Data quality impact
+    high_data_quality: 1.10            # Boost if data quality excellent
+    low_data_quality: 0.85             # Reduce if data quality poor
+    
+    # Confirmation window completeness
+    full_window_confirmed: 1.15        # Boost if entire window confirms condition
+    partial_window_confirmed: 0.90     # Reduce if partial confirmation
+    
+    # Historical pattern consistency
+    consistent_with_history: 1.10      # Boost if consistent with past patterns
+    inconsistent_with_history: 0.85    # Reduce if inconsistent
+    
+    # Behavioral state alignment
+    behavior_aligned: 1.05             # Boost if behavior matches expected
+    behavior_conflicting: 0.90         # Reduce if behavior doesn't match
+
+# ------------------------------------------------------------
+# Detection Latency Targets
+# ------------------------------------------------------------
+latency:
+  # Target alert generation time from condition onset
+  target_latency_minutes: 2            # Generate alert within 2 minutes
+  
+  # Maximum acceptable latency
+  max_latency_minutes: 5               # Must alert within 5 minutes
+  
+  # Processing batch size for real-time detection
+  batch_size_minutes: 1                # Process data in 1-minute batches
+
+# ------------------------------------------------------------
+# Alert Deduplication Strategy
+# ------------------------------------------------------------
+deduplication:
+  # Strategy: "time-based" or "condition-based"
+  strategy: "time-based"               # Use time-based deduplication
+  
+  # Alert ID generation
+  id_format: "{alert_type}_{cow_id}_{timestamp_hour}"  # Group by hour
+  
+  # Status tracking
+  track_alert_status: true             # Track active/resolved status
+  auto_resolve_after_minutes: 120      # Auto-resolve after 2 hours if condition clears
+
+# ------------------------------------------------------------
+# Per-Animal Threshold Customization
+# ------------------------------------------------------------
+# Optional: Override thresholds for specific animals
+# Format: cow_id -> threshold overrides
+per_animal_overrides:
+  enabled: false                       # Enable per-animal customization
+  
+  # Example overrides (commented out)
+  # overrides:
+  #   "COW_001":
+  #     fever_alert:
+  #       temperature_threshold: 39.7  # Higher threshold for naturally warm cow
+  #   "COW_002":
+  #     inactivity_alert:
+  #       duration_threshold_hours: 5.0  # Longer threshold for older cow
+
+# ------------------------------------------------------------
+# Alert Metadata Configuration
+# ------------------------------------------------------------
+metadata:
+  # Include sensor values at alert time
+  include_sensor_values: true
+  
+  # Include detection window details
+  include_detection_window: true
+  
+  # Include recent history context
+  include_recent_history: true
+  recent_history_minutes: 30           # Include 30 minutes of prior data
+  
+  # Include baseline comparisons
+  include_baseline_comparison: true    # Compare to individual baseline
+
+# ------------------------------------------------------------
+# Validation Rules
+# ------------------------------------------------------------
+validation:
+  # Ensure thresholds are within reasonable bounds
+  bounds:
+    temperature_min: 35.0              # Minimum valid temp threshold
+    temperature_max: 42.0              # Maximum valid temp threshold
+    duration_min_minutes: 1            # Minimum alert duration
+    duration_max_hours: 48             # Maximum alert duration
+    motion_min: 0.0                    # Minimum motion threshold
+    motion_max: 2.0                    # Maximum motion threshold
+  
+  # Warn on suspicious configurations
+  warn_on_suspicious: true             # Log warnings for unusual thresholds
