@@ -1,17 +1,15 @@
 """
 Health Intelligence Module
 
-Provides alert logging, state management, and health intelligence components
-for the Artemis Health livestock monitoring system.
+Provides health scoring, alert detection, and intelligent health analysis
+for the Artemis Health monitoring system.
 """
 
-__version__ = "1.0.0"
-
-from .logging.alert_logger import AlertLogger
-from .logging.alert_state_manager import AlertStateManager, AlertStatus
+from .alert_system import AlertSystem, AlertState, AlertStatus, AlertPriority
 
 __all__ = [
-    'AlertLogger',
-    'AlertStateManager',
+    'AlertSystem',
+    'AlertState',
     'AlertStatus',
+    'AlertPriority',
 ]
