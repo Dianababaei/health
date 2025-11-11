@@ -1,0 +1,164 @@
+# ============================================================
+# Health Score Component Weights Configuration
+# ============================================================
+# Configurable weights for modular health scoring system.
+# Total score is calculated from four independent components.
+#
+# Score Range: 0-100
+#   - 80-100: Excellent health (green)
+#   - 60-79: Good health with minor concerns (yellow)
+#   - 40-59: Moderate health issues requiring attention (orange)
+#   - 0-39: Poor health, critical intervention needed (red)
+#
+# Each component contributes a maximum of 25 points.
+# Weights determine the relative importance of each component.
+# ============================================================
+
+# ------------------------------------------------------------
+# Component Weights (must sum to 1.0)
+# ------------------------------------------------------------
+component_weights:
+  # Temperature stability contribution (30% of total score)
+  temperature_stability: 0.30
+  
+  # Activity level contribution (25% of total score)
+  activity_level: 0.25
+  
+  # Behavioral patterns contribution (25% of total score)
+  behavioral_patterns: 0.25
+  
+  # Alert frequency contribution (20% of total score)
+  alert_frequency: 0.20
+
+# ------------------------------------------------------------
+# Temperature Stability Component Configuration
+# ------------------------------------------------------------
+temperature_stability:
+  # Baseline deviation threshold (°C)
+  optimal_deviation: 0.5         # Full points if within ±0.5°C of baseline
+  max_deviation: 2.0             # Zero points if deviation > 2°C
+  
+  # Fever incident penalties
+  fever_penalty_per_incident: 5.0  # Deduct 5 points per fever occurrence
+  max_fever_penalty: 15.0          # Maximum penalty from fever incidents
+  
+  # Circadian rhythm bonus
+  circadian_bonus_enabled: true
+  circadian_bonus_max: 3.0       # Up to 3 bonus points for regular pattern
+
+# ------------------------------------------------------------
+# Activity Level Component Configuration
+# ------------------------------------------------------------
+activity_level:
+  # Activity deviation threshold (normalized 0-1 scale)
+  optimal_deviation: 0.15        # Full points if within ±15% of baseline
+  max_deviation: 0.50            # Zero points if deviation > 50%
+  
+  # Inactivity incident penalties
+  inactivity_penalty_per_incident: 7.0  # Deduct 7 points per prolonged inactivity
+  max_inactivity_penalty: 20.0          # Maximum penalty from inactivity
+  
+  # Activity duration bonus
+  duration_bonus_enabled: true
+  min_active_hours_per_day: 8    # Minimum expected active hours
+
+# ------------------------------------------------------------
+# Behavioral Patterns Component Configuration
+# ------------------------------------------------------------
+behavioral_patterns:
+  # Rumination time thresholds (minutes per day)
+  optimal_rumination_min: 400    # Minimum optimal rumination time
+  optimal_rumination_max: 600    # Maximum optimal rumination time
+  rumination_penalty_per_hour: 5.0  # Penalty for deficient rumination
+  
+  # Feeding regularity
+  feeding_regularity_weight: 0.4  # 40% of behavioral score
+  rumination_weight: 0.4          # 40% of behavioral score
+  stress_behavior_weight: 0.2     # 20% of behavioral score
+  
+  # Stress behavior detection
+  stress_behavior_penalty: 10.0   # Deduct 10 points per stress behavior incident
+  max_stress_penalty: 20.0        # Maximum penalty from stress behaviors
+
+# ------------------------------------------------------------
+# Alert Frequency Component Configuration
+# ------------------------------------------------------------
+alert_frequency:
+  # Alert severity weights
+  critical_alert_penalty: 10.0   # Deduct 10 points per critical alert
+  warning_alert_penalty: 5.0     # Deduct 5 points per warning alert
+  info_alert_penalty: 1.0        # Deduct 1 point per info alert
+  
+  # Maximum penalties
+  max_critical_penalty: 20.0     # Maximum penalty from critical alerts
+  max_warning_penalty: 15.0      # Maximum penalty from warning alerts
+  
+  # Resolution bonus
+  resolution_bonus_enabled: true
+  resolution_bonus_per_alert: 2.0  # Bonus for each resolved alert (improvement trend)
+
+# ------------------------------------------------------------
+# Score Calculation Settings
+# ------------------------------------------------------------
+calculation:
+  # Update frequency (minutes)
+  update_interval_minutes: 60    # Calculate score every hour
+  
+  # Data window for calculation (hours)
+  rolling_window_hours: 24       # Use last 24 hours of data
+  
+  # Minimum data completeness (0.0-1.0)
+  min_data_completeness: 0.70    # Require 70% data availability
+  
+  # Score smoothing
+  smoothing_enabled: true
+  smoothing_factor: 0.3          # EMA smoothing factor (0=no smoothing, 1=no memory)
+
+# ------------------------------------------------------------
+# Custom Formula Integration (Future)
+# ------------------------------------------------------------
+custom_formulas:
+  # Enable custom formula plugins (placeholder for future)
+  enabled: false
+  
+  # Plugin paths (future integration points)
+  # temperature_plugin: "plugins/custom_temperature_scorer.py"
+  # activity_plugin: "plugins/custom_activity_scorer.py"
+  # behavioral_plugin: "plugins/custom_behavioral_scorer.py"
+  # alert_plugin: "plugins/custom_alert_scorer.py"
+
+# ------------------------------------------------------------
+# Score Breakdown Export Settings
+# ------------------------------------------------------------
+export:
+  # Include component scores in output
+  include_component_scores: true
+  
+  # Include detailed breakdown in metadata
+  include_detailed_breakdown: true
+  
+  # Include raw metrics used for calculation
+  include_raw_metrics: true
+  
+  # Include timestamp of calculation
+  include_calculation_timestamp: true
+
+# ------------------------------------------------------------
+# Validation Rules
+# ------------------------------------------------------------
+validation:
+  # Ensure weights sum to 1.0
+  enforce_weight_sum: true
+  weight_sum_tolerance: 0.01     # Allow 1% tolerance
+  
+  # Score bounds validation
+  min_score: 0
+  max_score: 100
+  
+  # Component bounds validation
+  min_component_score: 0
+  max_component_score: 25
+  
+  # Warn on suspicious configurations
+  warn_on_zero_weight: true
+  warn_on_extreme_penalties: true
