@@ -1,0 +1,11 @@
+{
+  "cow_id": "DEMO_COW_001",
+  "overall_trend": "deteriorating",
+  "overall_confidence": 0.2,
+  "recommendations": [
+    "PRIORITY: Schedule veterinary examination",
+    "Increase monitoring frequency",
+    "Check for lameness or illness causing low activity",
+    "Low behavioral diversity - monitor for illness"
+  ]
+}

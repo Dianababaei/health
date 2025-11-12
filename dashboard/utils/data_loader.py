@@ -50,27 +50,46 @@ class DataLoader:
     ) -> pd.DataFrame:
         """
         Load sensor data from CSV files.
-        
+
+        NEW: Automatically checks simulation directory first if prefer_simulation is true.
+
         Args:
             data_dir: Directory containing sensor data files
             file_pattern: Pattern for matching files (e.g., "*.csv")
             time_range_hours: Filter data to last N hours
             max_rows: Maximum number of rows to return
-            
+
         Returns:
             DataFrame with sensor data
         """
         try:
             # Use default values from config if not provided
             if data_dir is None:
-                data_dir = self.data_sources.get('simulated_data_dir', 'data/simulated')
+                # NEW: Check simulation directory first if enabled
+                prefer_simulation = self.data_sources.get('prefer_simulation', True)
+                if prefer_simulation:
+                    sim_dir = self.data_sources.get('simulation_data_dir', 'data/simulation')
+                    sim_path = Path(sim_dir)
+                    if sim_path.exists():
+                        sim_files = list(sim_path.glob('*_sensor_data.csv'))
+                        if sim_files:
+                            # Use most recent simulation data
+                            latest_sim = sorted(sim_files, key=lambda x: x.stat().st_mtime)[-1]
+                            logger.info(f"Using simulation data: {latest_sim}")
+                            data_dir = sim_dir
+                            file_pattern = latest_sim.name
+
+                # Fallback to default directory
+                if data_dir is None:
+                    data_dir = self.data_sources.get('simulated_data_dir', 'data/simulated')
+
             if file_pattern is None:
                 file_pattern = self.data_sources.get('sensor_data_pattern', '*.csv')
-            
+
             # Find all matching files
             search_path = Path(data_dir) / file_pattern
             files = glob.glob(str(search_path))
-            
+
             if not files:
                 logger.warning(f"No sensor data files found in {data_dir}")
                 return self._create_empty_sensor_dataframe()
@@ -120,55 +139,108 @@ class DataLoader:
     ) -> List[Dict[str, Any]]:
         """
         Load alerts from JSON log file.
-        
+
+        NEW: Automatically checks simulation directory first if prefer_simulation is true.
+
         Args:
             alert_log_file: Path to alert log file
             max_alerts: Maximum number of alerts to return
             filter_severity: Filter by severity (critical, high, medium, low)
             filter_type: Filter by alert type
-            
+
         Returns:
             List of alert dictionaries
         """
         try:
             # Use default value from config if not provided
             if alert_log_file is None:
-                alert_log_file = self.data_sources.get('alert_log_file', 'logs/malfunction_alerts.json')
-            
+                # NEW: Check simulation directory first if enabled
+                prefer_simulation = self.data_sources.get('prefer_simulation', True)
+                if prefer_simulation:
+                    sim_dir = self.data_sources.get('simulation_data_dir', 'data/simulation')
+                    sim_path = Path(sim_dir)
+                    if sim_path.exists():
+                        sim_files = list(sim_path.glob('*_alerts.json'))
+                        if sim_files:
+                            # Use most recent simulation alerts
+                            latest_sim = sorted(sim_files, key=lambda x: x.stat().st_mtime)[-1]
+                            logger.info(f"Using simulation alerts: {latest_sim}")
+                            alert_log_file = str(latest_sim)
+
+                # Fallback to default alert log
+                if alert_log_file is None:
+                    alert_log_file = self.data_sources.get('alert_log_file', 'logs/malfunction_alerts.json')
+
             alert_path = Path(alert_log_file)
-            
+
             if not alert_path.exists():
                 logger.warning(f"Alert log file not found: {alert_log_file}")
                 return []
-            
-            # Read alerts from JSON log file (one JSON object per line)
+
+            # Check if it's a simulation alert file (JSON array) or log file (JSONL)
             alerts = []
             with open(alert_path, 'r') as f:
-                for line in f:
+                content = f.read().strip()
+
+                if not content or content == '[]':
+                    # Empty file or empty array
+                    logger.info(f"Alert file is empty: {alert_log_file}")
+                    return []
+
+                if content.startswith('['):
+                    # JSON array format (simulation alerts)
                     try:
-                        alert = json.loads(line.strip())
-                        
-                        # Apply filters
-                        if filter_severity and alert.get('severity') != filter_severity:
-                            continue
-                        if filter_type and alert.get('malfunction_type') != filter_type:
-                            continue
-                        
-                        alerts.append(alert)
+                        alerts = json.loads(content)
+                        logger.info(f"Loaded {len(alerts)} alerts from JSON array format")
                     except json.JSONDecodeError as e:
-                        logger.error(f"Error parsing alert JSON: {e}")
-            
+                        logger.error(f"Error parsing alert JSON array: {e}")
+                        return []
+                else:
+                    # JSONL format (one JSON object per line)
+                    for line in content.split('\n'):
+                        if not line.strip():
+                            continue
+                        try:
+                            alert = json.loads(line.strip())
+                            alerts.append(alert)
+                        except json.JSONDecodeError as e:
+                            logger.error(f"Error parsing alert JSON line: {e}")
+                    logger.info(f"Loaded {len(alerts)} alerts from JSONL format")
+
+            # Apply filters
+            filtered_alerts = []
+            for alert in alerts:
+                # Normalize severity field (might be 'severity' or in alert data)
+                severity = alert.get('severity', alert.get('malfunction_severity', ''))
+                alert_type = alert.get('alert_type', alert.get('malfunction_type', ''))
+
+                # Apply filters
+                if filter_severity and str(severity).lower() != filter_severity.lower():
+                    continue
+                if filter_type and str(alert_type).lower() != filter_type.lower():
+                    continue
+
+                filtered_alerts.append(alert)
+
             # Sort by timestamp (most recent first)
-            if alerts and 'detection_time' in alerts[0]:
-                alerts.sort(key=lambda x: x.get('detection_time', ''), reverse=True)
-            
+            if filtered_alerts:
+                # Try different timestamp fields
+                timestamp_field = None
+                for field in ['timestamp', 'detection_time', 'created_at']:
+                    if field in filtered_alerts[0]:
+                        timestamp_field = field
+                        break
+
+                if timestamp_field:
+                    filtered_alerts.sort(key=lambda x: x.get(timestamp_field, ''), reverse=True)
+
             # Limit number of alerts
             if max_alerts:
-                alerts = alerts[:max_alerts]
-            
-            logger.info(f"Loaded {len(alerts)} alerts from {alert_log_file}")
-            return alerts
-            
+                filtered_alerts = filtered_alerts[:max_alerts]
+
+            logger.info(f"Loaded {len(filtered_alerts)} alerts from {alert_log_file}")
+            return filtered_alerts
+
         except Exception as e:
             logger.error(f"Error loading alerts: {e}")
             return []

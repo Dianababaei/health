@@ -6,7 +6,10 @@
       "Bash(rm:*)",
       "Bash(python:*)",
       "Bash(streamlit run:*)",
-      "Bash(NUL)"
+      "Bash(NUL)",
+      "Bash(cat:*)",
+      "Bash(find:*)",
+      "Bash(iconv:*)"
     ],
     "deny": [],
     "ask": []

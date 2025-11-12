@@ -1,0 +1,16 @@
+{
+  "cow_id": "SIM_COW_001",
+  "baseline_temp": 38.5,
+  "duration_days": 14,
+  "total_samples": 20160,
+  "start_time": "2025-10-29 19:58:52.932165",
+  "end_time": "2025-11-12 19:57:52.932165",
+  "num_alerts": 0,
+  "conditions": {
+    "fever": true,
+    "estrus": true,
+    "pregnancy": false,
+    "heat_stress": false
+  },
+  "generated_at": "2025-11-12 19:59:00.583375"
+}

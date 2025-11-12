@@ -26,20 +26,24 @@ dashboard:
 # Data Sources
 # ------------------------------------------------------------
 data_sources:
-  # Sensor data paths
+  # Sensor data paths (in priority order)
+  simulation_data_dir: "data/simulation"  # NEW: Simulation data takes priority
   simulated_data_dir: "data/simulated"
   processed_data_dir: "data/processed"
   raw_data_dir: "data/raw"
-  
+
   # Alert logs
   alert_log_file: "logs/malfunction_alerts.json"
-  
+
   # Default data file patterns
   sensor_data_pattern: "*.csv"
-  
+
   # Data loading settings
   max_data_points: 10000
   default_time_range_hours: 24
+
+  # Simulation mode
+  prefer_simulation: true  # NEW: Use simulation data when available
 
 # ------------------------------------------------------------
 # Page Settings
