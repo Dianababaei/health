@@ -63,11 +63,12 @@ with tab1:
     
     with col1:
         # Main notification panel
+        # Use auto_refresh from sidebar settings (defined later in code)
         render_notification_panel(
             state_manager=state_manager,
             max_alerts=10,
-            auto_refresh=True,
-            refresh_interval=30
+            auto_refresh=False,  # Disabled by default
+            refresh_interval=60
         )
     
     with col2:
@@ -94,10 +95,17 @@ with tab3:
     st.markdown("## 🔍 Search Alerts")
     render_search_alerts(state_manager)
 
-# Footer
+# Footer with refresh button
 st.markdown("---")
+
+# Center the refresh button
+col1, col2, col3 = st.columns([2, 1, 2])
+with col2:
+    if st.button("🔄 Refresh Page", use_container_width=True, type="primary"):
+        st.rerun()
+
 st.markdown(f"""
-<div style='text-align: center; color: gray;'>
+<div style='text-align: center; color: gray; margin-top: 20px;'>
     <p><small>Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small></p>
     <p><small>Alert Dashboard v2.0 - Powered by Artemis Health Intelligence</small></p>
 </div>
@@ -106,45 +114,27 @@ st.markdown(f"""
 # Sidebar controls
 with st.sidebar:
     st.markdown("### ⚙️ Dashboard Settings")
-    
-    st.markdown("#### Auto-Refresh")
-    auto_refresh = st.checkbox("Enable Auto-Refresh", value=True)
-    
-    if auto_refresh:
-        refresh_interval = st.slider(
-            "Refresh Interval (seconds)",
-            min_value=10,
-            max_value=300,
-            value=30,
-            step=10
-        )
-        st.info(f"Dashboard will refresh every {refresh_interval} seconds")
-    
-    st.markdown("---")
-    
+
     st.markdown("#### Quick Statistics")
     stats = state_manager.get_statistics()
-    
+
     st.metric("Total Alerts", stats.get('total_alerts', 0))
-    
+
     active_count = stats.get('by_status', {}).get('active', 0)
     st.metric("Active Alerts", active_count)
-    
+
     resolved_count = stats.get('by_status', {}).get('resolved', 0)
     st.metric("Resolved Today", resolved_count)
-    
+
     st.markdown("---")
-    
+
     st.markdown("#### System Status")
     st.success("✅ Alert Logging: Active")
     st.success("✅ State Tracking: Active")
     st.info("💾 Database: SQLite")
-    
+
     st.markdown("---")
-    
-    if st.button("🔄 Refresh Dashboard", use_container_width=True):
-        st.rerun()
-    
+
     if st.button("📥 Export All Data", use_container_width=True):
         # Export functionality
         all_alerts = state_manager.query_alerts(limit=1000)

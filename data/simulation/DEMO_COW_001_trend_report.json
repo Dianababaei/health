@@ -1,0 +1,13 @@
+{
+  "cow_id": "DEMO_COW_001",
+  "analysis_timestamp": "2025-11-13T13:31:25.988941",
+  "overall_trend": "insufficient_data",
+  "overall_confidence": 0.0,
+  "period_comparisons": {},
+  "significant_changes": [],
+  "recommendations": [],
+  "trend_7day": null,
+  "trend_14day": null,
+  "trend_30day": null,
+  "trend_90day": null
+}

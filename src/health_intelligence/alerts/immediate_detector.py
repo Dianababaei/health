@@ -16,7 +16,11 @@ Features:
 """
 
 import logging
-import yaml
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
 import uuid
 import numpy as np
 import pandas as pd
@@ -122,6 +126,10 @@ class ImmediateAlertDetector:
     
     def _load_config(self) -> Dict[str, Any]:
         """Load threshold configuration from YAML file."""
+        if not YAML_AVAILABLE:
+            logger.warning("PyYAML not installed, using default config")
+            return self._get_default_config()
+
         try:
             with open(self.config_path, 'r') as f:
                 config = yaml.safe_load(f)

@@ -3,14 +3,14 @@
   "baseline_temp": 38.5,
   "duration_days": 14,
   "total_samples": 20160,
-  "start_time": "2025-10-29 19:58:52.932165",
-  "end_time": "2025-11-12 19:57:52.932165",
+  "start_time": "2025-10-30 00:00:37.496339",
+  "end_time": "2025-11-12 23:59:37.496339",
   "num_alerts": 0,
   "conditions": {
     "fever": true,
     "estrus": true,
     "pregnancy": false,
-    "heat_stress": false
+    "heat_stress": true
   },
-  "generated_at": "2025-11-12 19:59:00.583375"
+  "generated_at": "2025-11-13 00:00:39.699180"
 }

@@ -1,18 +1,18 @@
 {
   "cow_id": "SIM_COW_001",
-  "analysis_timestamp": "2025-11-12T19:58:58.764517",
+  "analysis_timestamp": "2025-11-13T00:00:39.271759",
   "overall_trend": "deteriorating",
-  "overall_confidence": 0.47771247207142653,
+  "overall_confidence": 0.36102118570173936,
   "period_comparisons": {
     "7d_vs_14d": {
-      "temperature_delta": -0.20784926777830748,
-      "activity_delta": 0.03052265537325366,
+      "temperature_delta": 0.02349243720220784,
+      "activity_delta": -0.002643880152413902,
       "alert_delta": 0,
-      "trend_change": "deteriorating -> stable"
+      "trend_change": "deteriorating -> deteriorating"
     }
   },
   "significant_changes": [
-    "Low activity level: 0.28"
+    "Low activity level: 0.26"
   ],
   "recommendations": [
     "PRIORITY: Schedule veterinary examination",
@@ -20,20 +20,20 @@
   ],
   "trend_7day": {
     "period_days": 7,
-    "start_date": "2025-11-05T19:58:58.764517",
-    "end_date": "2025-11-12T19:58:58.764517",
+    "start_date": "2025-11-06T00:00:39.271759",
+    "end_date": "2025-11-13T00:00:39.271759",
     "data_completeness": 0.9999007936507937,
     "temperature": {
-      "mean": 38.50449123176952,
-      "std": 0.08754044447705646,
-      "baseline_drift": 0.004491231769520709,
-      "anomaly_count": 0
+      "mean": 38.72158785742831,
+      "std": 0.5634043726330411,
+      "baseline_drift": 0.221587857428311,
+      "anomaly_count": 1095
     },
     "activity": {
-      "total_minutes": 1679.0,
-      "mean_level": 0.2825598869424936,
-      "rest_minutes": 6153.0,
-      "diversity": 0.6898675123364535
+      "total_minutes": 2756.0,
+      "mean_level": 0.2581830414716439,
+      "rest_minutes": 4222.0,
+      "diversity": 0.8759134501103969
     },
     "alerts": {
       "count": 0,
@@ -42,34 +42,34 @@
     },
     "behavioral": {
       "state_distribution": {
-        "lying": 61.047722988391705,
-        "ruminating_standing": 12.798888778648676,
-        "standing": 10.179581307669412,
-        "ruminating_lying": 9.494989582299832,
-        "feeding": 4.68300426629626,
-        "walking": 1.7958130766941167
+        "lying": 41.88907629725171,
+        "ruminating_lying": 18.087111816648477,
+        "standing": 12.798888778648676,
+        "ruminating_standing": 12.679829348149617,
+        "feeding": 10.01091378112908,
+        "walking": 4.534179978172437
       },
-      "changes_per_day": 13.285714285714286
+      "changes_per_day": 17.0
     },
-    "trend_indicator": "stable",
-    "confidence": 0.624248940444917
+    "trend_indicator": "deteriorating",
+    "confidence": 0.36115176706616176
   },
   "trend_14day": {
     "period_days": 14,
-    "start_date": "2025-10-29T19:58:58.764517",
-    "end_date": "2025-11-12T19:58:58.764517",
+    "start_date": "2025-10-30T00:00:39.271759",
+    "end_date": "2025-11-13T00:00:39.271759",
     "data_completeness": 0.9999503968253968,
     "temperature": {
-      "mean": 38.71234049954783,
-      "std": 0.568231003012939,
-      "baseline_drift": 0.2123404995478282,
-      "anomaly_count": 2220
+      "mean": 38.6980954202261,
+      "std": 0.5162051829580822,
+      "baseline_drift": 0.19809542022610316,
+      "anomaly_count": 1982
     },
     "activity": {
-      "total_minutes": 4060.0,
-      "mean_level": 0.25203723156923996,
-      "rest_minutes": 12111.0,
-      "diversity": 0.7123824888154909
+      "total_minutes": 6000.0,
+      "mean_level": 0.2608269216240578,
+      "rest_minutes": 9178.0,
+      "diversity": 0.8529279000118094
     },
     "alerts": {
       "count": 0,
@@ -78,17 +78,17 @@
     },
     "behavioral": {
       "state_distribution": {
-        "lying": 60.07738479091225,
-        "standing": 11.07197777667543,
-        "ruminating_standing": 10.943003125155018,
-        "ruminating_lying": 8.839724192668287,
-        "feeding": 6.666997370901334,
-        "walking": 2.400912743687683
+        "lying": 45.52805198670569,
+        "ruminating_lying": 15.387668039089242,
+        "standing": 13.621707425963589,
+        "feeding": 11.706929907237463,
+        "ruminating_standing": 9.320898854109828,
+        "walking": 4.434743786894192
       },
-      "changes_per_day": 15.642857142857142
+      "changes_per_day": 18.285714285714285
     },
     "trend_indicator": "deteriorating",
-    "confidence": 0.33117600369793604
+    "confidence": 0.36089060433731696
   },
   "trend_30day": null,
   "trend_90day": null

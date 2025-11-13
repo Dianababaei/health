@@ -1,0 +1,21 @@
+{
+  "cow_id": "DEMO_COW_001",
+  "baseline_temp": 38.5,
+  "duration_days": 14,
+  "total_samples": 20160,
+  "start_time": "2025-11-13 13:30:37.320345",
+  "end_time": "2025-11-27 13:29:37.320345",
+  "num_alerts": 2,
+  "conditions": {
+    "fever": true,
+    "estrus": false,
+    "pregnancy": false,
+    "heat_stress": false
+  },
+  "fever_details": {
+    "start_day": 3,
+    "duration_days": 2,
+    "temperature": 40.0
+  },
+  "generated_at": "2025-11-13 13:31:26.584374"
+}

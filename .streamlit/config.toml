@@ -1,0 +1,20 @@
+# Streamlit Configuration
+# This disables auto-refresh and file watching
+
+[server]
+# Disable auto-reload when files change
+runOnSave = false
+
+# Disable file watcher to prevent automatic page refresh
+fileWatcherType = "none"
+
+# Increase max message size for large datasets
+maxMessageSize = 500
+
+[browser]
+# Don't automatically open browser on startup
+gatherUsageStats = false
+
+[client]
+# Show less verbose error messages
+showErrorDetails = false

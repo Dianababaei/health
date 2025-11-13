@@ -1,8 +1,12 @@
 """
-Health Trends Page - Artemis Health Dashboard
+Health Analysis Page - Artemis Health Dashboard
 
-Displays health score gauge, historical trends, and contributing factors breakdown.
-Provides comprehensive health monitoring with baseline comparisons and trend analysis.
+Comprehensive health analysis including:
+- Health score trends over time
+- Behavioral pattern analysis
+- Temperature and activity correlation
+- Reproductive cycle tracking
+- Long-term health indicators
 """
 
 import streamlit as st
@@ -34,8 +38,8 @@ from src.data_processing.health_score_loader import (
 
 # Page configuration
 st.set_page_config(
-    page_title="Health Trends - Artemis Health",
-    page_icon="📈",
+    page_title="Health Analysis - Artemis Health",
+    page_icon="📊",
     layout="wide",
 )
 
@@ -47,7 +51,7 @@ if 'data_loader' not in st.session_state:
     st.session_state.data_loader = DataLoader(st.session_state.config)
 
 # Page header
-st.title("📈 Health Score & Trends Dashboard")
+st.title("📊 Health Analysis & Long-term Trends")
 st.markdown("*Real-time health monitoring with historical analysis and baseline comparisons*")
 st.markdown("---")
 

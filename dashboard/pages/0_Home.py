@@ -79,6 +79,105 @@ with col2:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ============================================================================
+# UPLOAD SIMULATION DATA
+# ============================================================================
+
+st.sidebar.markdown("### 📤 Upload Simulation Data")
+st.sidebar.markdown("Upload files from Simulation Testing:")
+
+uploaded_sensor = st.sidebar.file_uploader(
+    "1️⃣ Sensor Data (CSV)",
+    type=['csv'],
+    key='upload_sensor',
+    help="Required: Upload sensor data CSV"
+)
+
+uploaded_alerts = st.sidebar.file_uploader(
+    "2️⃣ Alerts (JSON)",
+    type=['json'],
+    key='upload_alerts',
+    help="Required: Upload alerts JSON"
+)
+
+uploaded_metadata = st.sidebar.file_uploader(
+    "3️⃣ Metadata (JSON)",
+    type=['json'],
+    key='upload_metadata',
+    help="Optional: Upload metadata"
+)
+
+if uploaded_sensor is not None:
+    from pathlib import Path
+
+    # Save to simulation directory
+    sim_dir = Path('data/simulation')
+    sim_dir.mkdir(parents=True, exist_ok=True)
+
+    sensor_file = sim_dir / 'SIM_COW_001_sensor_data.csv'
+    with open(sensor_file, 'wb') as f:
+        f.write(uploaded_sensor.getbuffer())
+
+    st.sidebar.success(f"✅ Sensor data uploaded")
+
+if uploaded_alerts is not None:
+    import json
+    import shutil
+    from pathlib import Path
+
+    # Save to simulation directory
+    sim_dir = Path('data/simulation')
+    sim_dir.mkdir(parents=True, exist_ok=True)
+
+    # Read and save alerts
+    alerts_data = json.load(uploaded_alerts)
+    alerts_file = sim_dir / 'SIM_COW_001_alerts.json'
+    with open(alerts_file, 'w') as f:
+        json.dump(alerts_data, f, indent=2)
+
+    # Also save to database
+    try:
+        from health_intelligence.logging import AlertStateManager
+        state_manager = AlertStateManager(db_path="data/alert_state.db")
+        for i, alert in enumerate(alerts_data):
+            alert_data = {
+                'alert_id': f"SIM_{alert['cow_id']}_{alert['alert_type']}_{i}",
+                'cow_id': alert['cow_id'],
+                'alert_type': alert['alert_type'],
+                'severity': alert['severity'],
+                'timestamp': alert['timestamp'],
+                'confidence': 0.95,
+                'sensor_values': {},
+                'detection_details': {'source': 'simulation_upload'}
+            }
+            state_manager.create_alert(alert_data)
+    except:
+        pass
+
+    st.sidebar.success(f"✅ Alerts uploaded ({len(alerts_data)} alerts)")
+
+if uploaded_metadata is not None:
+    import json
+    from pathlib import Path
+
+    # Save to simulation directory
+    sim_dir = Path('data/simulation')
+    sim_dir.mkdir(parents=True, exist_ok=True)
+
+    metadata = json.load(uploaded_metadata)
+    metadata_file = sim_dir / 'SIM_COW_001_metadata.json'
+    with open(metadata_file, 'w') as f:
+        json.dump(metadata, f, indent=2)
+
+    st.sidebar.success(f"✅ Metadata uploaded")
+
+if uploaded_alerts or uploaded_sensor or uploaded_metadata:
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🔄 Refresh to Load Data", use_container_width=True, type="primary"):
+        st.rerun()
+
+st.sidebar.markdown("---")
+
+# ============================================================================
 # LOAD DATA
 # ============================================================================
 
@@ -91,6 +190,12 @@ with st.spinner("Loading live data..."):
 
         # Load alerts
         alerts = data_loader.load_alerts(max_alerts=50)
+
+        # Show what was loaded
+        if len(alerts) > 0:
+            st.success(f"✅ Loaded {len(alerts)} alerts")
+        else:
+            st.info("ℹ️ No alerts found")
 
         # Calculate health score if data exists
         if len(df) > 0:
@@ -307,15 +412,10 @@ else:
         <div style="font-size: 64px; margin-bottom: 16px;">🐮</div>
         <h3 style="color: #856404; margin-bottom: 8px;">No Live Data</h3>
         <p style="color: #856404; margin-bottom: 20px;">
-            Generate simulation data to test dashboard or connect real sensors
+            Upload simulation data using the sidebar or connect real sensors
         </p>
     </div>
     """, unsafe_allow_html=True)
-
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🧪 Generate Simulation Data", use_container_width=True, type="primary"):
-            st.switch_page("pages/99_Simulation_Testing.py")
 
 # ============================================================================
 # QUICK ACTIONS (Only if data exists)
@@ -329,39 +429,37 @@ if len(df) > 0:
         subtitle="Navigate to detailed views"
     )
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("🚨 Alerts", use_container_width=True, type="secondary"):
+        if st.button("🚨 View All Alerts", use_container_width=True, type="secondary"):
             st.switch_page("pages/2_Alerts.py")
 
     with col2:
-        if st.button("📈 Health Trends", use_container_width=True, type="secondary"):
-            st.switch_page("pages/3_Health_Trends.py")
-
-    with col3:
-        if st.button("🌡️ Temperature", use_container_width=True, type="secondary"):
-            st.switch_page("pages/4_Temperature.py")
-
-    with col4:
-        if st.button("🧪 Simulation", use_container_width=True, type="secondary"):
-            st.switch_page("pages/99_Simulation_Testing.py")
+        if st.button("📊 Detailed Analysis", use_container_width=True, type="secondary"):
+            st.switch_page("pages/3_Health_Analysis.py")
 
 # ============================================================================
-# FOOTER WITH AUTO-REFRESH INFO
+# FOOTER WITH REFRESH BUTTON
 # ============================================================================
 
 st.markdown("<br><br>", unsafe_allow_html=True)
+st.markdown("---")
 
-refresh_status = "Auto-refresh enabled (5 min)" if AUTO_REFRESH_ENABLED else "Manual refresh (use browser refresh button)"
+# Center the refresh button
+col1, col2, col3 = st.columns([2, 1, 2])
+with col2:
+    if st.button("🔄 Refresh Page", use_container_width=True, type="primary"):
+        st.rerun()
+
 st.markdown(f"""
 <div style="
     text-align: center;
     padding: 20px;
     color: #95a5a6;
     font-size: 12px;
-    border-top: 1px solid #ecf0f1;
+    margin-top: 10px;
 ">
-    Artemis Livestock Health Monitoring | {refresh_status} | Last updated: {now}
+    Artemis Livestock Health Monitoring | Last updated: {now}
 </div>
 """, unsafe_allow_html=True)

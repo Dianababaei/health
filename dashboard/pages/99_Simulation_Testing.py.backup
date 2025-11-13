@@ -27,7 +27,14 @@ import plotly.express as px
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'src'))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# FORCE RELOAD: Ensure we use the latest code, not cached version
+import importlib
+
+# Import and reload simulation modules
+import simulation
+importlib.reload(simulation)
 from simulation import SimulationEngine
+
 from utils.simulation_indicator import check_simulation_active, render_clear_button
 from simulation.health_conditions import (
     FeverSimulator,
@@ -36,7 +43,11 @@ from simulation.health_conditions import (
     HeatStressSimulator
 )
 from health_intelligence import MultiDayHealthTrendTracker
+
+# Reload alert detector
 try:
+    from health_intelligence.alerts import immediate_detector
+    importlib.reload(immediate_detector)
     from health_intelligence.alerts.immediate_detector import ImmediateAlertDetector
 except:
     ImmediateAlertDetector = None
@@ -156,6 +167,9 @@ generate_button = st.sidebar.button(
 # ============================================================================
 
 if generate_button:
+    # CLEAR ALL CACHES to ensure we use the latest code
+    st.cache_resource.clear()
+    st.cache_data.clear()
     with st.spinner(f"Generating {duration_days} days of simulation data..."):
 
         progress_bar = st.progress(0)
@@ -254,7 +268,12 @@ if generate_button:
 
         alerts = []
         if ImmediateAlertDetector is not None:
-            detector = ImmediateAlertDetector()
+            # FORCE RELOAD: Get the latest detector code, not cached
+            import importlib
+            from health_intelligence.alerts import immediate_detector
+            importlib.reload(immediate_detector)
+            from health_intelligence.alerts.immediate_detector import ImmediateAlertDetector as FreshDetector
+            detector = FreshDetector()
 
             # Process data in 10-minute windows (for efficiency)
             # The detector needs a rolling window of data to detect patterns
@@ -299,45 +318,29 @@ if generate_button:
             behavioral_states=activity_df
         )
 
-        # Step 5: Save to FILES (for persistence across pages)
-        status_text.text("Step 5/5: Saving data to files...")
+        # Step 5: Prepare data for download (NO file saving, NO database)
+        status_text.text("Step 5/5: Preparing data for download...")
         progress_bar.progress(90)
 
-        # Create simulation data directory
-        sim_dir = Path(__file__).parent.parent.parent / 'data' / 'simulation'
-        sim_dir.mkdir(parents=True, exist_ok=True)
-
-        # Save sensor data to CSV (this makes it available to all pages!)
-        sensor_file = sim_dir / f'{cow_id}_sensor_data.csv'
-        df.to_csv(sensor_file, index=False)
-
-        # Save alerts to JSON
         import json
-        alerts_file = sim_dir / f'{cow_id}_alerts.json'
-        with open(alerts_file, 'w') as f:
-            # Convert to serializable format
-            alert_list = []
-            for alert in alerts:
-                alert_dict = {
-                    'timestamp': str(alert['timestamp']),
-                    'cow_id': alert['cow_id'],
-                    'alert_type': str(alert['alert_type']),
-                    'severity': str(alert['severity'])
-                }
-                alert_list.append(alert_dict)
-            json.dump(alert_list, f, indent=2)
 
-        # Save trend report to JSON
-        trend_file = sim_dir / f'{cow_id}_trend_report.json'
-        with open(trend_file, 'w') as f:
-            trend_dict = trend_report.to_dict()
-            # Convert datetime to string
-            if 'analysis_timestamp' in trend_dict:
-                trend_dict['analysis_timestamp'] = str(trend_dict['analysis_timestamp'])
-            json.dump(trend_dict, f, indent=2)
+        # Prepare alerts for download
+        alert_list = []
+        for alert in alerts:
+            alert_dict = {
+                'timestamp': str(alert['timestamp']),
+                'cow_id': alert['cow_id'],
+                'alert_type': str(alert['alert_type']),
+                'severity': str(alert['severity'])
+            }
+            alert_list.append(alert_dict)
 
-        # Save metadata
-        metadata_file = sim_dir / f'{cow_id}_metadata.json'
+        # Prepare trend report for download
+        trend_dict = trend_report.to_dict()
+        if 'analysis_timestamp' in trend_dict:
+            trend_dict['analysis_timestamp'] = str(trend_dict['analysis_timestamp'])
+
+        # Prepare metadata for download
         metadata = {
             'cow_id': cow_id,
             'baseline_temp': baseline_temp,
@@ -354,8 +357,6 @@ if generate_button:
             },
             'generated_at': str(datetime.now())
         }
-        with open(metadata_file, 'w') as f:
-            json.dump(metadata, f, indent=2)
 
         # Also save to session state for current page
         progress_bar.progress(95)
@@ -379,9 +380,50 @@ if generate_button:
         progress_bar.empty()
         status_text.empty()
 
-        st.success(f"✅ Generated {len(df)} sensor readings for {cow_id} ({duration_days} days)")
-        st.info(f"📁 Data saved to: `data/simulation/{cow_id}_*.csv/json`\n\n"
-                f"✨ This data is now available to ALL dashboard pages!")
+        st.success(f"✅ Generated {len(df)} sensor readings with {len(alerts)} alerts for {cow_id} ({duration_days} days)")
+
+        # Create download buttons
+        st.markdown("### 📥 Download Generated Data")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            # Download sensor data CSV
+            csv_data = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="⬇️ Download Sensor Data (CSV)",
+                data=csv_data,
+                file_name=f"{cow_id}_sensor_data.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+
+        with col2:
+            # Download alerts JSON
+            alerts_json = json.dumps(alert_list, indent=2).encode('utf-8')
+            st.download_button(
+                label="⬇️ Download Alerts (JSON)",
+                data=alerts_json,
+                file_name=f"{cow_id}_alerts.json",
+                mime="application/json",
+                use_container_width=True
+            )
+
+        with col3:
+            # Download metadata JSON
+            metadata_json = json.dumps(metadata, indent=2).encode('utf-8')
+            st.download_button(
+                label="⬇️ Download Metadata (JSON)",
+                data=metadata_json,
+                file_name=f"{cow_id}_metadata.json",
+                mime="application/json",
+                use_container_width=True
+            )
+
+        st.info("💡 **Next Steps:**\n"
+                "1. Download the files using buttons above\n"
+                "2. Go to Home page\n"
+                "3. Upload the files to view alerts and data")
 
 # ============================================================================
 # DISPLAY SIMULATION RESULTS
