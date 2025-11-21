@@ -57,7 +57,8 @@ def generate_comprehensive_test_data(
     print("  [OK] Prolonged inactivity alert (Day 11)")
     print("  [OK] Estrus detection (Day 15)")
     print("  [OK] Sensor malfunction (Day 18)")
-    print("  [OK] All behavioral states (throughout)")
+    print("  [OK] Behavioral states: lying, standing, walking, feeding")
+    print("  [--] Ruminating: DISABLED (requires >=10 Hz sampling)")
     print("\n" + "=" * 60)
 
     # Create output directory
@@ -153,6 +154,8 @@ def generate_comprehensive_test_data(
         day_start = day * minutes_per_day
 
         # Normal daily pattern (default for most days)
+        # NOTE: Rumination detection DISABLED (requires ≥10 Hz, we have 1/min)
+        # Using lying instead of ruminating periods
         if day not in [2, 6, 10, 14, 17, 20]:  # Skip special event days
             # Night lying (00:00 - 06:00)
             set_behavior(day_start, day_start + 360, 'lying')
@@ -163,8 +166,8 @@ def generate_comprehensive_test_data(
             # Morning walking/grazing (07:00 - 09:00)
             set_behavior(day_start + 420, day_start + 540, 'walking')
 
-            # Mid-morning ruminating while lying (09:00 - 11:00)
-            set_behavior(day_start + 540, day_start + 660, 'ruminating')
+            # Mid-morning resting while lying (09:00 - 11:00)
+            set_behavior(day_start + 540, day_start + 660, 'lying')
 
             # Midday standing/resting (11:00 - 13:00)
             set_behavior(day_start + 660, day_start + 780, 'standing')
@@ -175,8 +178,8 @@ def generate_comprehensive_test_data(
             # Late afternoon feeding (15:00 - 16:00)
             set_behavior(day_start + 900, day_start + 960, 'feeding')
 
-            # Evening ruminating (16:00 - 18:00)
-            set_behavior(day_start + 960, day_start + 1080, 'ruminating')
+            # Evening resting while lying (16:00 - 18:00)
+            set_behavior(day_start + 960, day_start + 1080, 'lying')
 
             # Evening lying (18:00 - 24:00)
             set_behavior(day_start + 1080, day_start + 1440, 'lying')
@@ -248,19 +251,18 @@ def generate_comprehensive_test_data(
     set_behavior(day_start, malfunction_start, 'lying')
     set_behavior(malfunction_end, day_start + 1440, 'standing')
 
-    # DAY 21: COMPLEX DAY (all behaviors clearly visible)
+    # DAY 21: COMPLEX DAY (all detectable behaviors clearly visible)
+    # NOTE: Rumination excluded (requires ≥10 Hz sampling)
     day = 20
     day_start = day * minutes_per_day
     print(f"[Day {day+1}] Generating COMPLEX behavioral day...")
-    set_behavior(day_start, day_start + 240, 'lying')       # 00:00-04:00
-    set_behavior(day_start + 240, day_start + 360, 'ruminating')  # 04:00-06:00
-    set_behavior(day_start + 360, day_start + 420, 'feeding')     # 06:00-07:00
-    set_behavior(day_start + 420, day_start + 540, 'walking')     # 07:00-09:00
-    set_behavior(day_start + 540, day_start + 660, 'standing')    # 09:00-11:00
-    set_behavior(day_start + 660, day_start + 780, 'feeding')     # 11:00-13:00
-    set_behavior(day_start + 780, day_start + 960, 'walking')     # 13:00-16:00
-    set_behavior(day_start + 960, day_start + 1080, 'ruminating') # 16:00-18:00
-    set_behavior(day_start + 1080, day_start + 1200, 'standing')  # 18:00-20:00
+    set_behavior(day_start, day_start + 360, 'lying')       # 00:00-06:00
+    set_behavior(day_start + 360, day_start + 480, 'feeding')     # 06:00-08:00
+    set_behavior(day_start + 480, day_start + 600, 'walking')     # 08:00-10:00
+    set_behavior(day_start + 600, day_start + 720, 'standing')    # 10:00-12:00
+    set_behavior(day_start + 720, day_start + 840, 'feeding')     # 12:00-14:00
+    set_behavior(day_start + 840, day_start + 1020, 'walking')    # 14:00-17:00
+    set_behavior(day_start + 1020, day_start + 1200, 'standing')  # 17:00-20:00
     set_behavior(day_start + 1200, day_start + 1440, 'lying')     # 20:00-24:00
 
     # Create DataFrame
@@ -348,7 +350,8 @@ def generate_comprehensive_test_data(
             }
         ],
         "behavioral_states_to_verify": [
-            "lying", "standing", "walking", "ruminating", "feeding"
+            "lying", "standing", "walking", "feeding"
+            # NOTE: "ruminating" DISABLED - requires >=10 Hz sampling (current: 1/min)
         ],
         "health_score_expectations": {
             "days_1_2": "High (85-95) - normal baseline",
@@ -377,7 +380,8 @@ def generate_comprehensive_test_data(
     print("5. Navigate through all 3 pages to verify features")
     print("\nEXPECTED RESULTS:")
     print("  [OK] 5 alerts should be detected (fever, heat stress, inactivity, estrus, malfunction)")
-    print("  [OK] All 5 behavioral states should appear in charts")
+    print("  [OK] 4 behavioral states detected: lying, standing, walking, feeding")
+    print("  [--] Ruminating: DISABLED (requires >=10 Hz, current: 1 sample/min)")
     print("  [OK] Health score should vary from 0-95 across the 21 days")
     print("  [OK] Timeline should show clear event markers")
     print(f"\nFiles generated in: {output_dir}/")

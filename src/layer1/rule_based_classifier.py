@@ -66,7 +66,7 @@ class RuleBasedClassifier:
         self,
         min_duration_samples: int = 2,
         enable_smoothing: bool = True,
-        enable_rumination: bool = False,  # FFT-based, computationally expensive
+        enable_rumination: bool = False,  # DISABLED: Requires ≥10 Hz sampling (current: 1/min)
         enable_feeding: bool = False,
         sampling_rate: float = 1.0  # samples per minute
     ):
@@ -76,7 +76,9 @@ class RuleBasedClassifier:
         Args:
             min_duration_samples: Minimum consecutive samples before state change
             enable_smoothing: Enable transition smoothing to reduce jitter
-            enable_rumination: Enable rumination detection (requires frequency analysis)
+            enable_rumination: Enable rumination detection (DISABLED by default - requires ≥10 Hz
+                sampling rate to detect 1 Hz jaw movement. At 1 sample/min, detection is not
+                scientifically valid. See: Schirmann et al. 2009, Burfeind et al. 2011)
             enable_feeding: Enable feeding detection
             sampling_rate: Sampling rate in samples per minute (default: 1.0)
         """
@@ -130,10 +132,14 @@ class RuleBasedClassifier:
                 'mya_variance_min': 0.10,  # g (lateral body sway during gait)
             },
             'ruminating': {
-                'frequency_min': 0.67,  # Hz (40 cycles/min, Schirmann et al. 2009)
-                'frequency_max': 1.0,  # Hz (60 cycles/min, Burfeind et al. 2011)
-                'mya_variance_min': 0.08,  # g (jaw lateral movement)
-                'lyg_variance_min': 6.0,  # °/s (head bobbing)
+                # WARNING: Rumination detection requires ≥10 Hz sampling to detect
+                # jaw movement at 1.0-1.5 Hz. At 1 sample/min, this is NOT scientifically
+                # valid. Thresholds below are variance-based proxies, not true detection.
+                # References: Schirmann et al. 2009, Burfeind et al. 2011
+                'frequency_min': 0.67,  # Hz (40 cycles/min) - NOT detectable at 1/min sampling
+                'frequency_max': 1.0,  # Hz (60 cycles/min) - NOT detectable at 1/min sampling
+                'mya_variance_min': 0.08,  # g (variance proxy, not direct jaw detection)
+                'lyg_variance_min': 6.0,  # °/s (variance proxy, not direct head bobbing)
                 'duration_min_samples': 5,  # Minimum 5 minutes sustained
                 'fft_peak_threshold': 3.0,  # Peak must be >3× baseline power
             },
@@ -696,17 +702,27 @@ class RuleBasedClassifier:
         """
         Detect rumination periods using sliding window analysis.
 
-        Rumination is characterized by:
-        - Regular jaw movements (mya variance > 0.08g)
-        - Head bobbing (lyg variance > 6.0°/s)
-        - Low overall motion (lying or standing)
+        ⚠️ SCIENTIFIC LIMITATION WARNING:
+        True rumination detection requires ≥10 Hz sampling to detect jaw movement
+        at 1.0-1.5 Hz (60-90 chews/min). At 1 sample/min, this method uses variance
+        as a PROXY and is NOT scientifically rigorous. Results should be labeled
+        as "estimated" rather than "detected".
+
+        References:
+        - Schirmann et al. 2009: Rumination frequency 40-60 cycles/min
+        - Burfeind et al. 2011: Requires FFT at ≥10 Hz sampling
+
+        Proxy criteria used (NOT direct jaw detection):
+        - MYA variance > 0.08g (correlates with rhythmic activity)
+        - LYG variance > 6.0°/s (correlates with head movement)
+        - Low overall motion (lying or standing posture)
         - Sustained for at least 5 minutes
 
         Args:
             result_df: DataFrame with initial state classifications
 
         Returns:
-            DataFrame with rumination states updated
+            DataFrame with rumination states updated (labeled as estimates)
         """
         window_size = 5  # 5-minute sliding window (300 seconds at 1 sample/min)
 

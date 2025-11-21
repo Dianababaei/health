@@ -138,12 +138,14 @@ if uploaded_sensor is not None:
                     from layer1.rule_based_classifier import RuleBasedClassifier
 
                     if 'state' not in df.columns:
-                        # Enable rumination detection (requires FFT, slower processing)
-                        classifier = RuleBasedClassifier(enable_rumination=True)
+                        # Rumination detection DISABLED: requires ≥10 Hz sampling
+                        # At 1 sample/min, jaw movement (1 Hz) cannot be detected scientifically
+                        classifier = RuleBasedClassifier(enable_rumination=False)
                         # Use batch classification for better performance
                         df_classified = classifier.classify_batch(df)
                         df['state'] = df_classified['state']
-                        st.success(f"✅ Layer 1: Behavior classified (with rumination detection)")
+                        st.success(f"✅ Layer 1: Behavior classified (lying, standing, walking, feeding)")
+                        st.caption("ℹ️ *Rumination detection disabled - requires ≥10 Hz sampling (current: 1/min)*")
 
                     # LAYER 2: Temperature Analysis (implicit in data)
                     st.info("⚙️ Layer 2: Temperature analysis complete")

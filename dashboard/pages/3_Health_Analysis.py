@@ -373,15 +373,19 @@ st.markdown("""
 
 The health score (0-100) is calculated based on multiple factors:
 
-- **Temperature Stability (25%)**: Body temperature patterns and circadian rhythm consistency
+- **Temperature Stability (30%)**: Body temperature patterns and deviation from baseline
 - **Activity Level (25%)**: Movement patterns and overall physical activity
-- **Behavioral Consistency (25%)**: Normal behavioral patterns (lying, standing, feeding, ruminating)
-- **Rumination Quality (20%)**: Rumination frequency and duration
-- **Alert Impact (5%)**: Penalty for recent health alerts
+- **Behavioral Consistency (25%)**: Normal behavioral patterns (lying, standing, walking, feeding)
+- **Alert Impact (20%)**: Penalty for active health alerts
+
+> **Note:** Rumination detection is currently **disabled** due to sampling rate limitation.
+> Accurate rumination detection requires ≥10 Hz sampling to detect jaw movement at 1.0-1.5 Hz.
+> Current system uses 1 sample/minute. *(References: Schirmann et al. 2009, Burfeind et al. 2011)*
 
 **Color Zones:**
-- 🟢 **Green (70-100)**: Healthy animal, normal monitoring
-- 🟡 **Yellow (40-70)**: Fair health, increased monitoring recommended
+- 🟢 **Green (80-100)**: Excellent health, normal monitoring
+- 🟡 **Yellow (60-80)**: Good health, routine monitoring
+- 🟠 **Orange (40-60)**: Moderate concern, increased monitoring recommended
 - 🔴 **Red (0-40)**: Poor health, immediate attention required
 
 **Baseline Comparison:**

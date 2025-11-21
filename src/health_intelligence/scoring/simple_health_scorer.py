@@ -350,20 +350,20 @@ class SimpleHealthScorer:
             elif lying_ratio > 0.5:
                 score -= (lying_ratio - 0.5) * 20.0
 
-        # Reward ruminating behavior (healthy digestive activity)
-        # Check for all rumination states: 'ruminating', 'ruminating_lying', 'ruminating_standing'
+        # Rumination detection DISABLED at 1 sample/min (requires ≥10 Hz sampling)
+        # No penalty for missing rumination - cannot be detected scientifically
+        # See: Schirmann et al. 2009, Burfeind et al. 2011
         ruminating_ratio = 0.0
         for state in ['ruminating', 'ruminating_lying', 'ruminating_standing']:
             ruminating_ratio += state_ratios.get(state, 0)
 
         if ruminating_ratio > 0:
+            # If rumination IS detected (e.g., higher sampling rate in future)
             if ruminating_ratio < 0.1:
                 score -= 5.0
                 warnings.append(f"Low rumination: {ruminating_ratio*100:.1f}% of time")
             # else: rumination is healthy, no penalty
-        else:
-            score -= 5.0
-            warnings.append("No rumination detected")
+        # else: No penalty - rumination detection disabled due to sampling rate limitation
 
         # Check for active states (walking, feeding)
         active_states = ['walking', 'feeding', 'standing']
