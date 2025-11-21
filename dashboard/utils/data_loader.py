@@ -65,23 +65,23 @@ class DataLoader:
         try:
             # Use default values from config if not provided
             if data_dir is None:
-                # NEW: Check simulation directory first if enabled
-                prefer_simulation = self.data_sources.get('prefer_simulation', True)
-                if prefer_simulation:
-                    sim_dir = self.data_sources.get('simulation_data_dir', 'data/simulation')
-                    sim_path = Path(sim_dir)
-                    if sim_path.exists():
-                        sim_files = list(sim_path.glob('*_sensor_data.csv'))
-                        if sim_files:
-                            # Use most recent simulation data
-                            latest_sim = sorted(sim_files, key=lambda x: x.stat().st_mtime)[-1]
-                            logger.info(f"Using simulation data: {latest_sim}")
-                            data_dir = sim_dir
-                            file_pattern = latest_sim.name
+                # Check dashboard directory first
+                prefer_dashboard = self.data_sources.get('prefer_dashboard', True)
+                if prefer_dashboard:
+                    dashboard_dir = self.data_sources.get('dashboard_data_dir', 'data/dashboard')
+                    dashboard_path = Path(dashboard_dir)
+                    if dashboard_path.exists():
+                        dashboard_files = list(dashboard_path.glob('*_sensor_data.csv'))
+                        if dashboard_files:
+                            # Use most recent dashboard data
+                            latest_data = sorted(dashboard_files, key=lambda x: x.stat().st_mtime)[-1]
+                            logger.info(f"Using dashboard data: {latest_data}")
+                            data_dir = dashboard_dir
+                            file_pattern = latest_data.name
 
                 # Fallback to default directory
                 if data_dir is None:
-                    data_dir = self.data_sources.get('simulated_data_dir', 'data/simulated')
+                    data_dir = self.data_sources.get('dashboard_data_dir', 'data/dashboard')
 
             if file_pattern is None:
                 file_pattern = self.data_sources.get('sensor_data_pattern', '*.csv')
@@ -154,18 +154,18 @@ class DataLoader:
         try:
             # Use default value from config if not provided
             if alert_log_file is None:
-                # NEW: Check simulation directory first if enabled
-                prefer_simulation = self.data_sources.get('prefer_simulation', True)
-                if prefer_simulation:
-                    sim_dir = self.data_sources.get('simulation_data_dir', 'data/simulation')
-                    sim_path = Path(sim_dir)
-                    if sim_path.exists():
-                        sim_files = list(sim_path.glob('*_alerts.json'))
-                        if sim_files:
-                            # Use most recent simulation alerts
-                            latest_sim = sorted(sim_files, key=lambda x: x.stat().st_mtime)[-1]
-                            logger.info(f"Using simulation alerts: {latest_sim}")
-                            alert_log_file = str(latest_sim)
+                # Check dashboard directory first
+                prefer_dashboard = self.data_sources.get('prefer_dashboard', True)
+                if prefer_dashboard:
+                    dashboard_dir = self.data_sources.get('dashboard_data_dir', 'data/dashboard')
+                    dashboard_path = Path(dashboard_dir)
+                    if dashboard_path.exists():
+                        dashboard_files = list(dashboard_path.glob('*_alerts.json'))
+                        if dashboard_files:
+                            # Use most recent dashboard alerts
+                            latest_alerts = sorted(dashboard_files, key=lambda x: x.stat().st_mtime)[-1]
+                            logger.info(f"Using dashboard alerts: {latest_alerts}")
+                            alert_log_file = str(latest_alerts)
 
                 # Fallback to default alert log
                 if alert_log_file is None:

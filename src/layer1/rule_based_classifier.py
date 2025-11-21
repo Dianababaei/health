@@ -277,6 +277,10 @@ class RuleBasedClassifier:
         if self.enable_smoothing:
             result_df = self._apply_smoothing(result_df)
 
+        # Apply rumination detection if enabled
+        if self.enable_rumination:
+            result_df = self._detect_rumination(result_df)
+
         self.classification_count += len(sensor_data)
 
         return result_df
@@ -687,6 +691,66 @@ class RuleBasedClassifier:
             timestamp=timestamp,
             rule_fired="transition_fallback"
         )
+
+    def _detect_rumination(self, result_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Detect rumination periods using sliding window analysis.
+
+        Rumination is characterized by:
+        - Regular jaw movements (mya variance > 0.08g)
+        - Head bobbing (lyg variance > 6.0°/s)
+        - Low overall motion (lying or standing)
+        - Sustained for at least 5 minutes
+
+        Args:
+            result_df: DataFrame with initial state classifications
+
+        Returns:
+            DataFrame with rumination states updated
+        """
+        window_size = 5  # 5-minute sliding window (300 seconds at 1 sample/min)
+
+        if len(result_df) < window_size:
+            return result_df
+
+        # Get thresholds
+        thresh = self.thresholds['ruminating']
+        mya_var_min = thresh['mya_variance_min']
+        lyg_var_min = thresh['lyg_variance_min']
+        min_duration = thresh['duration_min_samples']
+
+        # Calculate rolling variance for mya and lyg
+        result_df['mya_rolling_var'] = result_df['mya'].rolling(window=window_size, center=True).var()
+        result_df['lyg_rolling_var'] = result_df['lyg'].rolling(window=window_size, center=True).var()
+
+        # Detect rumination periods
+        for i in range(window_size, len(result_df) - window_size):
+            current_state = result_df.iloc[i]['state']
+
+            # Only detect rumination when lying or standing (not walking)
+            if current_state in ['lying', 'standing']:
+                mya_var = result_df.iloc[i]['mya_rolling_var']
+                lyg_var = result_df.iloc[i]['lyg_rolling_var']
+
+                # Check if rumination criteria met
+                if pd.notna(mya_var) and pd.notna(lyg_var):
+                    if mya_var > mya_var_min and lyg_var > lyg_var_min:
+                        # Update state to ruminating_lying or ruminating_standing
+                        if current_state == 'lying':
+                            result_df.at[result_df.index[i], 'state'] = 'ruminating_lying'
+                        elif current_state == 'standing':
+                            result_df.at[result_df.index[i], 'state'] = 'ruminating_standing'
+
+                        # Increase confidence for rumination
+                        result_df.at[result_df.index[i], 'confidence'] = min(
+                            result_df.iloc[i]['confidence'] + 0.2,
+                            0.95
+                        )
+
+        # Clean up temporary columns
+        result_df = result_df.drop(columns=['mya_rolling_var', 'lyg_rolling_var'], errors='ignore')
+
+        return result_df
 
     # =========================================================================
     # UTILITY METHODS

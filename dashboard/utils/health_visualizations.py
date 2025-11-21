@@ -311,27 +311,33 @@ def display_contributing_factors_streamlit(factors: Dict[str, float]):
     
     # Define colors and icons for each factor
     factor_config = {
-        'temperature_stability': {'icon': '🌡️', 'color': '#FF6B6B', 'label': 'Temperature Stability'},
-        'activity_level': {'icon': '🏃', 'color': '#4ECDC4', 'label': 'Activity Level'},
-        'behavioral_consistency': {'icon': '🎯', 'color': '#45B7D1', 'label': 'Behavioral Consistency'},
-        'rumination_quality': {'icon': '🐄', 'color': '#96CEB4', 'label': 'Rumination Quality'},
-        'alert_impact': {'icon': '⚠️', 'color': '#FFEAA7', 'label': 'Alert Impact'},
+        'temperature_stability': {'icon': '🌡️', 'color': '#FF6B6B', 'label': 'Temperature Stability', 'desc': 'Higher is better'},
+        'activity_level': {'icon': '🏃', 'color': '#4ECDC4', 'label': 'Activity Level', 'desc': 'Higher is better'},
+        'behavioral_consistency': {'icon': '🎯', 'color': '#45B7D1', 'label': 'Behavioral Consistency', 'desc': 'Higher is better'},
+        'rumination_quality': {'icon': '🐄', 'color': '#96CEB4', 'label': 'Rumination Quality', 'desc': 'Higher is better'},
+        'alert_impact': {'icon': '⚠️', 'color': '#FFEAA7', 'label': 'Alert Status', 'desc': '0%=many alerts, 100%=no alerts'},
     }
-    
+
     # Display each factor with progress bar
     for factor_name, percentage in factors.items():
-        config = factor_config.get(factor_name, {'icon': '📊', 'color': '#95A5A6', 'label': factor_name})
-        
-        st.markdown(f"**{config['icon']} {config['label']}**")
+        config = factor_config.get(factor_name, {'icon': '📊', 'color': '#95A5A6', 'label': factor_name, 'desc': ''})
+
+        # Format label with description for alert_impact
+        if factor_name == 'alert_impact':
+            label = f"{config['icon']} {config['label']}"
+            st.markdown(f"**{label}** <small style='color: #888;'>({config['desc']})</small>", unsafe_allow_html=True)
+        else:
+            st.markdown(f"**{config['icon']} {config['label']}**")
+
         col1, col2 = st.columns([4, 1])
-        
+
         with col1:
             # Progress bar with custom color
             st.progress(percentage / 100.0)
-        
+
         with col2:
             st.markdown(f"**{percentage:.1f}%**")
-        
+
         st.markdown("<br>", unsafe_allow_html=True)
 
 

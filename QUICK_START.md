@@ -67,8 +67,8 @@ streamlit run simulation_app.py
 
 1. Configure settings (duration, fever, estrus, etc.)
 2. Click "Generate Data"
-3. Download 3 files
-4. Upload in main dashboard
+3. Download the raw sensor CSV file
+4. Upload in main dashboard (processes automatically through all 3 layers)
 
 ---
 

@@ -44,6 +44,49 @@ state_manager = get_state_manager()
 # Page header
 st.title("🚨 Alerts Dashboard")
 st.markdown("*Real-time alert monitoring and management*")
+
+# Database Status
+try:
+    import sqlite3
+    from pathlib import Path
+
+    db_path = Path("data/alert_state.db")
+
+    if db_path.exists():
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT COUNT(*) FROM alerts WHERE status = 'active'")
+        active_count = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM alerts WHERE status = 'acknowledged'")
+        ack_count = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM alerts WHERE status = 'resolved'")
+        resolved_count = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM alerts")
+        total_count = cursor.fetchone()[0]
+
+        conn.close()
+
+        # Show metrics
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric("🔴 Active", active_count)
+        with col2:
+            st.metric("👁️ Acknowledged", ack_count)
+        with col3:
+            st.metric("✅ Resolved", resolved_count)
+        with col4:
+            st.metric("📊 Total", total_count)
+    else:
+        st.info("📂 No alerts database found. Upload CSV data to generate alerts.")
+
+except Exception as e:
+    st.warning(f"Could not load alert statistics: {e}")
+
 st.markdown("---")
 
 # Create tabs for different views
@@ -66,7 +109,7 @@ with tab1:
         # Use auto_refresh from sidebar settings (defined later in code)
         render_notification_panel(
             state_manager=state_manager,
-            max_alerts=10,
+            max_alerts=100,  # Show all active alerts (increased from 10)
             auto_refresh=False,  # Disabled by default
             refresh_interval=60
         )

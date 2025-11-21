@@ -18,7 +18,9 @@ from datetime import datetime, timedelta
 import os
 
 # Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+root_dir = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(root_dir))
+sys.path.insert(0, str(root_dir / "src"))
 
 from dashboard.utils.data_loader import load_config, DataLoader
 from dashboard.utils.db_connection import get_database_connection
@@ -53,74 +55,138 @@ if 'data_loader' not in st.session_state:
 # Page header
 st.title("📊 Health Analysis & Long-term Trends")
 st.markdown("*Real-time health monitoring with historical analysis and baseline comparisons*")
+
+# Database Status
+try:
+    import sqlite3
+    from pathlib import Path
+
+    db_path = Path("data/alert_state.db")
+
+    if db_path.exists():
+        conn_db = sqlite3.connect(str(db_path))
+        cursor = conn_db.cursor()
+
+        cursor.execute("SELECT COUNT(*) FROM health_scores")
+        total_scores = cursor.fetchone()[0]
+
+        cursor.execute("SELECT MIN(timestamp), MAX(timestamp) FROM health_scores")
+        date_range = cursor.fetchone()
+
+        cursor.execute("SELECT AVG(total_score) FROM health_scores")
+        avg_score = cursor.fetchone()[0]
+
+        conn_db.close()
+
+        # Show metrics
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric("📊 Total Records", total_scores)
+        with col2:
+            if avg_score:
+                st.metric("📈 Average Score", f"{avg_score:.1f}")
+            else:
+                st.metric("📈 Average Score", "--")
+        with col3:
+            if date_range[0] and date_range[1]:
+                from datetime import datetime
+                start = datetime.fromisoformat(date_range[0])
+                end = datetime.fromisoformat(date_range[1])
+                days = (end - start).days + 1
+                st.metric("📅 Data Range", f"{days} days")
+            else:
+                st.metric("📅 Data Range", "--")
+    else:
+        st.info("📂 No health score database found. Upload CSV data to generate health scores.")
+
+except Exception as e:
+    st.warning(f"Could not load database statistics: {e}")
+
 st.markdown("---")
 
 # Control panel
-col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+col1, col2 = st.columns([3, 1])
 
 with col1:
-    # Time range selector with more granular options
-    time_range_options = {
-        "Last 7 days": 7,
-        "Last 14 days": 14,
-        "Last 30 days": 30,
-        "Last 90 days": 90,
-    }
-    selected_label = st.selectbox(
-        "Select Time Range",
-        options=list(time_range_options.keys()),
-        index=1,  # Default to 14 days
-    )
-    selected_days = time_range_options[selected_label]
+    # Cow ID (fixed for single-cow mode)
+    cow_id = "COW_001"
+    st.info(f"**Cow ID:** {cow_id} | **Showing:** All available data")
 
 with col2:
-    # Cow ID selector (for multi-cow support)
-    cow_id = st.number_input(
-        "Cow ID",
-        min_value=1000,
-        max_value=9999,
-        value=1042,
-        step=1,
-    )
-
-with col3:
-    # Baseline period selector
-    baseline_days = st.selectbox(
-        "Baseline Period",
-        options=[7, 14, 30, 60],
-        index=2,  # Default to 30 days
-    )
-
-with col4:
     if st.button("🔄 Refresh", use_container_width=True):
         st.rerun()
+
+# Fixed settings - no user selection needed
+baseline_days = 30  # Use 30 days for baseline calculation
 
 st.markdown("---")
 
 # Main content - Health Score Dashboard
-with st.spinner("Loading health score data..."):
+with st.spinner("Loading all health score data..."):
     try:
-        # Get database connection
-        conn = get_database_connection()
-        
-        # Calculate time range
-        end_time = datetime.now()
-        start_time = end_time - timedelta(days=selected_days)
-        
-        # Query health scores
-        health_data = query_health_scores(cow_id, start_time, end_time, conn)
-        
-        # Calculate baseline
-        baseline_score, baseline_start, baseline_end = calculate_baseline_health_score(
-            cow_id, baseline_days, end_time, conn
-        )
-        
-        # Get latest health score
-        latest_data = get_latest_health_score(cow_id, conn)
-        
+        # Get ALL health scores (no time filtering)
+        from src.health_intelligence.logging.health_score_manager import HealthScoreManager
+        manager = HealthScoreManager(db_path="data/alert_state.db")
+
+        # Query ALL health scores for this cow
+        all_scores = manager.query_health_scores(cow_id=cow_id, sort_order="ASC")
+
+        if not all_scores.empty:
+            # Convert to expected format
+            score_dates = pd.to_datetime(all_scores['timestamp'])
+            oldest = score_dates.min()
+            newest = score_dates.max()
+
+            # Use the actual data range
+            start_time = oldest.to_pydatetime()
+            end_time = newest.to_pydatetime()
+
+            # Map to expected column names
+            health_data = all_scores.rename(columns={
+                'total_score': 'health_score',
+                'temperature_score': 'temperature_component',
+                'activity_score': 'activity_component',
+                'behavioral_score': 'behavior_component',
+                'alert_score': 'alert_penalty'
+            })
+
+            # Add missing columns
+            if 'rumination_component' not in health_data.columns:
+                health_data['rumination_component'] = 0.0
+            if 'trend_direction' not in health_data.columns:
+                health_data['trend_direction'] = 'stable'
+            if 'trend_rate' not in health_data.columns:
+                health_data['trend_rate'] = 0.0
+
+            # Get latest health score
+            latest_data = get_latest_health_score(cow_id, None)
+
+            # Calculate baseline using last 30 days from newest date
+            baseline_score, baseline_start, baseline_end = calculate_baseline_health_score(
+                cow_id, baseline_days, newest.to_pydatetime(), None
+            )
+
+            # Debug info (optional)
+            with st.expander("🔍 Data Info", expanded=False):
+                st.write(f"**Total Records:** {len(health_data)}")
+                st.write(f"**Date Range:** {oldest.strftime('%Y-%m-%d %H:%M')} to {newest.strftime('%Y-%m-%d %H:%M')}")
+                st.write(f"**Days of Data:** {(newest - oldest).days + 1}")
+                st.write(f"**Baseline Score:** {baseline_score:.1f}")
+        else:
+            # No health scores at all
+            health_data = pd.DataFrame()
+            latest_data = None
+
         if health_data.empty or latest_data is None:
-            st.warning("⚠️ No health score data available for the selected cow and time range")
-            st.info("💡 **Tips:**\n- Try a different cow ID\n- Extend the time range\n- Check if health score data is being generated")
+            # No health scores at all
+            st.warning("⚠️ No health score data available for COW_001")
+            st.info("💡 **How to generate health scores:**\n\n"
+                   "1. Go to the **Home** page\n"
+                   "2. Upload CSV data using the sidebar\n"
+                   "3. Wait for processing to complete\n"
+                   "4. Health scores will be automatically saved to database\n"
+                   "5. Return to this page to view trends")
         else:
             # Get current score
             current_score = latest_data['health_score']
@@ -173,9 +239,13 @@ with st.spinner("Loading health score data..."):
             st.subheader("📈 Health Score History")
             
             if len(health_data) > 0:
+                # Calculate days of data for label
+                days_of_data = (newest - oldest).days + 1
+                time_range_label = f"All data ({days_of_data} days)"
+
                 history_fig = create_health_history_chart(
                     health_data=health_data,
-                    time_range_label=selected_label,
+                    time_range_label=time_range_label,
                     show_baseline=True,
                     baseline_score=baseline_score
                 )
@@ -207,7 +277,7 @@ with st.spinner("Loading health score data..."):
             factors = get_contributing_factors(
                 cow_id,
                 latest_data['timestamp'],
-                conn
+                None  # connection not needed (uses SQLite directly)
             )
             
             if factors:
@@ -290,11 +360,7 @@ with st.spinner("Loading health score data..."):
                         st.warning(rec)
                 else:
                     st.success("✅ No specific recommendations - maintain current care routine")
-        
-        # Close connection if it was opened
-        if conn is not None and hasattr(conn, 'close'):
-            conn.close()
-        
+
     except Exception as e:
         st.error(f"❌ Error loading health score data: {str(e)}")
         import traceback
@@ -319,6 +385,9 @@ The health score (0-100) is calculated based on multiple factors:
 - 🔴 **Red (0-40)**: Poor health, immediate attention required
 
 **Baseline Comparison:**
-The baseline score is calculated as the rolling average over the selected baseline period (default: 30 days).
+The baseline score is calculated as the rolling average over the last 30 days of available data.
 The delta indicator shows how the current score compares to this historical baseline.
+
+**Data Display:**
+All available health score data is shown (no time filtering). The chart displays the complete history of health scores in the database.
 """)

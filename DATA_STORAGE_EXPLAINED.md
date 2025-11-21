@@ -1,12 +1,16 @@
-# Data Storage - Why Alerts Are in Two Places
+# Data Storage - End-to-End Processing & Alert Storage
 
-## The Issue You Found
+## How the System Works Now
 
-**Problem:**
-- Home page shows 1 alert ✓
-- Alerts page shows 0 alerts ✗
+**Upload workflow:**
+1. Upload ONLY raw sensor CSV (temperature, fxa, mya, rza, sxg, lyg, dzg)
+2. Dashboard automatically processes through all 3 layers:
+   - Layer 1: Behavior classification
+   - Layer 2: Temperature analysis
+   - Layer 3: Alert detection
+3. Alerts saved to BOTH JSON and database
 
-**Reason:** Different data sources!
+**No pre-processed files needed!**
 
 ---
 
@@ -93,20 +97,32 @@ for alert in alerts:
 
 ---
 
-## How Upload Works
+## How Upload Works Now
 
-**When you upload alerts JSON in Home page:**
+**When you upload raw sensor CSV in Home page:**
 
 ```python
-# dashboard/pages/0_Home.py, line 102-135
+# dashboard/pages/0_Home.py
 
-# 1. Save to JSON file
-with open('data/simulation/alerts.json', 'w') as f:
-    json.dump(alerts_data, f)
+# 1. Read raw sensor CSV
+df = pd.read_csv(uploaded_sensor)
 
-# 2. ALSO save to database
+# 2. Layer 1: Classify behavior
+classifier = BehaviorClassifier()
+df['state'] = classifier.classify(sensor_data)
+
+# 3. Layer 2: Temperature analysis (implicit in data)
+
+# 4. Layer 3: Detect alerts
+detector = ImmediateAlertDetector()
+alerts = detector.detect_alerts(sensor_data, cow_id, baseline_temp)
+
+# 5. Save alerts to JSON
+json.dump(alerts, open('alerts.json', 'w'))
+
+# 6. ALSO save to database
 state_manager = AlertStateManager(db_path="data/alert_state.db")
-for alert in alerts_data:
+for alert in alerts:
     state_manager.create_alert(alert)
 ```
 

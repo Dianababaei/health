@@ -1,0 +1,127 @@
+Artemis Health Monitoring - Test Report
+Date: 2025-11-19 15:02:01
+================================================================================
+
+Summary:
+  Total: 37
+  Passed: 35
+  Failed: 1
+  Warnings: 1
+  Pass Rate: 94.6%
+
+Recommendation: NEEDS FIXES
+
+Detailed Results:
+================================================================================
+
+PASS: Python version
+  Python 3.12.8
+
+FAIL: Streamlit installed
+  Not installed
+
+PASS: Pandas installed
+  v2.2.3
+
+PASS: Directory 'data'
+  Exists
+
+PASS: Directory 'data/dashboard'
+  Exists
+
+PASS: Directory 'src'
+  Exists
+
+PASS: Directory 'dashboard'
+  Exists
+
+PASS: Database exists
+  data\alert_state.db
+
+PASS: Table 'alerts'
+  20 records
+
+PASS: Table 'health_scores'
+  7 records
+
+PASS: Generator: Basic health monitoring
+  generate_raw_sensor_data.py
+
+PASS: Generator: General health
+  generate_raw_sensor_data_2.py
+
+PASS: Generator: Reproductive focus
+  generate_raw_sensor_data_3.py
+
+PASS: Generator: Rumination focus
+  generate_raw_sensor_data_4.py
+
+PASS: Sensor data exists
+  data\dashboard\COW_001_sensor_data.csv
+
+PASS: Required columns
+  All present
+
+PASS: Data size
+  10,080 samples
+
+PASS: State classification
+  7 different states
+
+PASS: Rumination detected
+  1.4% (141 samples)
+
+PASS: Total alerts
+  20 alerts in database
+
+PASS: Alert types
+  fever: 8, heat_stress: 6, inactivity: 6
+
+PASS: Alert statuses
+  acknowledged: 1, active: 18, resolved: 1
+
+WARN: Reproductive alerts
+  None detected (may need dataset 3)
+
+PASS: Health score records
+  7 scores in database
+
+PASS: Latest health score
+  77.0/100
+
+PASS: Component scores
+  All in valid range (0-1)
+
+PASS: Score accuracy
+  Score 77.0 matches 18 alerts
+
+PASS: Component: Home page
+  dashboard/pages/0_Home.py
+
+PASS: Component: Alerts page
+  dashboard/pages/2_Alerts.py
+
+PASS: Component: Health Analysis page
+  dashboard/pages/3_Health_Analysis.py
+
+PASS: Component: Notification panel
+  dashboard/components/notification_panel.py
+
+PASS: Component: Data loader
+  dashboard/utils/data_loader.py
+
+PASS: Component: Health visualizations
+  dashboard/utils/health_visualizations.py
+
+PASS: Timestamp fix (use 'timestamp' not 'created_at')
+  Applied
+
+PASS: Rumination detection fix
+  Applied
+
+PASS: Rumination display fix
+  Applied
+
+PASS: Alert pagination fix (100 alerts)
+  Applied
+

@@ -105,16 +105,18 @@ def render_alert_card(alert: Dict[str, Any], state_manager: AlertStateManager):
     alert_type = alert.get('alert_type', 'Unknown')
     cow_id = alert.get('cow_id', 'unknown')
     confidence = alert.get('confidence', 0.0)
-    created_at = alert.get('created_at', '')
-    
+
+    # Use 'timestamp' field (actual detection time) instead of 'created_at' (DB insert time)
+    alert_timestamp = alert.get('timestamp', alert.get('created_at', ''))
+
     # Get severity icon and color
     icon = SEVERITY_ICONS.get(severity, '⚪')
     color = SEVERITY_COLORS.get(severity, '#808080')
-    
-    # Format created time
+
+    # Format alert time
     try:
-        created_dt = datetime.fromisoformat(created_at)
-        time_ago = _format_time_ago(created_dt)
+        alert_dt = datetime.fromisoformat(alert_timestamp)
+        time_ago = _format_time_ago(alert_dt)
     except:
         time_ago = "Unknown time"
     
@@ -133,7 +135,7 @@ def render_alert_card(alert: Dict[str, Any], state_manager: AlertStateManager):
             st.markdown(f"**Type:** {alert_type}")
             st.markdown(f"**Severity:** {severity.upper()}")
             st.markdown(f"**Confidence:** {confidence:.1%}")
-            st.markdown(f"**Detected:** {created_at}")
+            st.markdown(f"**Detected:** {alert_timestamp}")
             
             # Sensor values
             sensor_values = alert.get('sensor_values', {})
@@ -316,16 +318,31 @@ def render_severity_distribution(state_manager: AlertStateManager):
 def _format_time_ago(dt: datetime) -> str:
     """
     Format datetime as relative time string.
-    
+
     Args:
         dt: Datetime object
-        
+
     Returns:
         Formatted string (e.g., "5 minutes ago")
     """
-    now = datetime.now()
+    # Get current time - make timezone-aware if dt is timezone-aware
+    if dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is not None:
+        # dt is timezone-aware
+        from datetime import timezone
+        now = datetime.now(timezone.utc).astimezone(dt.tzinfo)
+    else:
+        # dt is naive (no timezone)
+        now = datetime.now()
+
+    # Calculate time difference
     diff = now - dt
-    
+
+    # Handle negative differences (future dates - can happen with test/simulation data)
+    if diff.total_seconds() < 0:
+        # Show absolute timestamp for future dates
+        return dt.strftime("%b %d, %H:%M")
+
+    # Format based on time difference
     if diff < timedelta(minutes=1):
         return "Just now"
     elif diff < timedelta(hours=1):
@@ -334,6 +351,9 @@ def _format_time_ago(dt: datetime) -> str:
     elif diff < timedelta(days=1):
         hours = int(diff.total_seconds() / 3600)
         return f"{hours} hour{'s' if hours != 1 else ''} ago"
-    else:
+    elif diff < timedelta(days=7):
         days = diff.days
         return f"{days} day{'s' if days != 1 else ''} ago"
+    else:
+        # For older alerts, show absolute date instead of relative
+        return dt.strftime("%b %d, %H:%M")

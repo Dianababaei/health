@@ -1,8 +1,8 @@
 """
-Estrus (Heat) Detection - Indicative Alerts
+Estrus (Heat) Detection - INFORMATIONAL ALERTS ONLY
 
-Provides early-stage indicative alerts for potential estrus events.
-This is a PoC-level detector that flags events for further observation.
+⚠️ IMPORTANT: This module provides INFORMATIONAL alerts only, not diagnostic decisions.
+These alerts are intended to notify farm operators for manual observation and verification.
 
 Detection Criteria:
 - Temperature rise: 0.3-0.6°C above baseline
@@ -10,8 +10,12 @@ Detection Criteria:
 - Duration: 6-24 hours
 - Typical cycle: 21 days
 
-Note: These are indicative alerts, not final decisions.
-Veterinary or manual confirmation recommended.
+❗ REQUIRED ACTIONS:
+- Manual observation and confirmation by farm staff
+- Veterinary consultation for breeding decisions
+- Do not use for automated breeding protocols
+
+This is a support tool for farm management, not a replacement for veterinary expertise.
 """
 
 import pandas as pd
@@ -71,8 +75,10 @@ class EstrusDetector:
     """
     Estrus detection using temperature and activity patterns.
 
-    This is an indicative detector for PoC/research phase.
-    It flags potential estrus events for further observation.
+    ⚠️ INFORMATIONAL ALERTS ONLY - Not for automated breeding decisions.
+
+    This detector generates alerts to notify farm operators of potential estrus events.
+    All alerts require manual verification and veterinary consultation before action.
 
     Usage:
         detector = EstrusDetector(baseline_temp=38.5)
@@ -90,7 +96,7 @@ class EstrusDetector:
         temp_rise_min: float = 0.3,
         temp_rise_max: float = 0.6,
         activity_increase_min: float = 0.20,  # 20%
-        activity_increase_max: float = 0.50,  # 50%
+        activity_increase_max: float = 4.0,  # 400% (allows high activity spikes during estrus)
         min_duration_hours: int = 6,
         max_duration_hours: int = 24
     ):

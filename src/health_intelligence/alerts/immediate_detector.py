@@ -182,6 +182,12 @@ class ImmediateAlertDetector:
                     'inactivity': 0.75,
                     'sensor_malfunction': 0.95,
                 },
+                'adjustments': {
+                    'high_data_quality': 1.1,
+                    'low_data_quality': 0.9,
+                    'full_window_confirmed': 1.05,
+                    'partial_window_confirmed': 0.95,
+                },
             },
         }
     
@@ -626,11 +632,13 @@ class ImmediateAlertDetector:
             self.active_alerts[alert_key] = alert
             return alert
         
-        # Check for out-of-range temperature
-        if 'temperature' in sensor_data.columns:
-            out_of_range_config = config['out_of_range']['temperature']
-            temp_min = out_of_range_config['min']
-            temp_max = out_of_range_config['max']
+        # Check for out-of-range temperature (if configured)
+        if 'temperature' in sensor_data.columns and 'out_of_range' in config:
+            out_of_range_config = config.get('out_of_range', {}).get('temperature', {})
+            if not out_of_range_config:
+                return None
+            temp_min = out_of_range_config.get('min', 35.0)
+            temp_max = out_of_range_config.get('max', 42.0)
             
             out_of_range = sensor_data[
                 (sensor_data['temperature'] < temp_min) | 
