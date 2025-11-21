@@ -75,21 +75,14 @@ livestock/health/
 
 ## 📚 Documentation
 
-**Production Deployment:**
-- [PRODUCTION_GUIDE.md](PRODUCTION_GUIDE.md) - Deployment procedures and best practices
-- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common issues and solutions
-
-**User Guides:**
+**Getting Started:**
 - [QUICK_START.md](QUICK_START.md) - 30-second setup guide
 - [UPLOAD_WORKFLOW.md](UPLOAD_WORKFLOW.md) - How to upload sensor data
 
-**Technical Documentation:**
-- [DATABASE_SCHEMA_EXPLAINED.md](DATABASE_SCHEMA_EXPLAINED.md) - Database structure
+**Production & Operations:**
+- [PRODUCTION_GUIDE.md](PRODUCTION_GUIDE.md) - Deployment procedures and best practices
+- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common issues and solutions
 - [DATA_STORAGE_EXPLAINED.md](DATA_STORAGE_EXPLAINED.md) - Data flow and storage
-
-**Testing:**
-- [COMPREHENSIVE_TESTING_GUIDE.md](COMPREHENSIVE_TESTING_GUIDE.md) - Full testing procedures
-- [END_TO_END_TEST_GUIDE.md](END_TO_END_TEST_GUIDE.md) - End-to-end test scenarios
 
 ---
 
