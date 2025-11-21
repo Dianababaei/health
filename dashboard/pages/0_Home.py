@@ -131,7 +131,15 @@ if uploaded_sensor is not None:
                     if 'cow_id' not in df.columns:
                         df['cow_id'] = cow_id_input
 
-                    st.info(f"✅ Loaded {len(df)} sensor readings")
+                    st.info(f"✅ Loaded {len(df)} new sensor readings")
+
+                    # BEST PRACTICE: Append data to database (not overwrite)
+                    from health_intelligence.logging import SensorDataManager
+                    sensor_manager = SensorDataManager(db_path="data/alert_state.db")
+
+                    # Check existing data
+                    existing_stats = sensor_manager.get_data_statistics(cow_id_input)
+                    existing_records = existing_stats.get('total_records', 0)
 
                     # LAYER 1: Behavior Classification
                     st.info("⚙️ Layer 1: Classifying behavior...")
@@ -354,11 +362,33 @@ if uploaded_sensor is not None:
                         for alert in alerts[:3]:  # Show first 3
                             st.write(f"  - {alert['alert_type']} ({alert['severity']})")
 
+                    # BEST PRACTICE: Calculate health score from ALL data in database
+                    # First, save the new data to database (will be done later, but need for calculation)
+                    sensor_manager.append_sensor_data(df, cow_id_input)
+
+                    # Get all accumulated data for comprehensive health score
+                    all_sensor_data = sensor_manager.get_all_data(cow_id_input)
+
+                    if len(all_sensor_data) > 0:
+                        st.info(f"📊 Calculating health score from {len(all_sensor_data):,} total records")
+                        sensor_data_for_score = all_sensor_data
+                    else:
+                        sensor_data_for_score = df
+
+                    # Calculate dynamic baseline from historical data
+                    calculated_baseline = sensor_manager.calculate_baseline_temperature(cow_id_input, baseline_days=7)
+                    if calculated_baseline:
+                        baseline_to_use = calculated_baseline
+                        st.caption(f"ℹ️ *Using calculated baseline: {baseline_to_use:.2f}°C (7-day median)*")
+                    else:
+                        baseline_to_use = baseline_temp_input
+                        st.caption(f"ℹ️ *Using manual baseline: {baseline_to_use:.2f}°C (insufficient data for auto-calculation)*")
+
                     scorer = SimpleHealthScorer()
                     health_score = scorer.calculate_score(
                         cow_id=cow_id_input,
-                        sensor_data=df,
-                        baseline_temp=baseline_temp_input,
+                        sensor_data=sensor_data_for_score,
+                        baseline_temp=baseline_to_use,
                         active_alerts=alerts
                     )
 
@@ -383,11 +413,18 @@ if uploaded_sensor is not None:
                         st.warning(f"⚠️ Health score calculated: {health_score['total_score']:.1f}/100 ({health_score['health_category']}) - Failed to save to database")
                         st.error("Check logs for database errors")
 
-                    # Save processed data
+                    # Data already appended above (before health score calculation)
+                    # Get statistics to show in summary
+                    updated_stats = sensor_manager.get_data_statistics(cow_id_input)
+                    # Calculate how many were added vs skipped
+                    inserted = updated_stats.get('total_records', 0) - existing_records
+                    skipped = len(df) - inserted if inserted >= 0 else 0
+                    total_records = updated_stats.get('total_records', 0)
+                    days_of_data = updated_stats.get('days_of_data', 0)
+
+                    # Also save to CSV for backward compatibility
                     dashboard_dir = Path('data/dashboard')
                     dashboard_dir.mkdir(parents=True, exist_ok=True)
-
-                    # Save sensor data with behavioral states
                     sensor_file = dashboard_dir / f'{cow_id_input}_sensor_data.csv'
                     df.to_csv(sensor_file, index=False)
 
@@ -395,14 +432,16 @@ if uploaded_sensor is not None:
                     metadata = {
                         'cow_id': cow_id_input,
                         'baseline_temp': baseline_temp_input,
-                        'total_samples': len(df),
+                        'upload_samples': len(df),
+                        'total_samples_in_db': total_records,
+                        'days_of_data': days_of_data,
                         'start_time': str(df['timestamp'].min()),
                         'end_time': str(df['timestamp'].max()),
                         'num_alerts': len(alerts),
                         'health_score': health_score['total_score'],
                         'health_category': health_score['health_category'],
                         'processed_at': str(datetime.now()),
-                        'processing': '3-Layer Intelligence (Behavioral + Physiological + Health Intelligence) + Dashboard Metrics'
+                        'processing': '3-Layer Intelligence + Rolling Window Health Score'
                     }
 
                     metadata_file = dashboard_dir / f'{cow_id_input}_metadata.json'
@@ -412,12 +451,15 @@ if uploaded_sensor is not None:
                     st.success("✅ Processing complete!")
                     st.markdown("---")
 
-                    # Show summary
+                    # Show summary with data append info
                     st.markdown("**Summary:**")
-                    st.write(f"• Sensor readings: {len(df):,}")
+                    st.write(f"• New readings uploaded: {len(df):,}")
+                    st.write(f"• Added to database: {inserted:,} (skipped {skipped:,} duplicates)")
+                    st.write(f"• **Total data in database: {total_records:,} records ({days_of_data} days)**")
                     st.write(f"• Time range: {metadata['start_time']} to {metadata['end_time']}")
                     st.write(f"• Alerts detected: {len(alerts)}")
                     st.write(f"• Health Score: {health_score['total_score']:.1f}/100 ({health_score['health_category']})")
+                    st.caption("ℹ️ *Health score calculated using rolling 24-hour window (best practice)*")
 
                     if len(alerts) > 0:
                         fever_alerts = sum(1 for a in alerts if a['alert_type'] == 'fever')
