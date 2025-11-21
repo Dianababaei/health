@@ -3,9 +3,6 @@ Enhanced Alerts Dashboard Page - Artemis Health Dashboard
 
 Displays active alerts with notification panel, alert history,
 and comprehensive alert management capabilities.
-
-NOTE: This is an enhanced version using the new alert logging and state management
-components. To use this version, rename it to replace 4_Alerts_Dashboard.py
 """
 
 import streamlit as st
@@ -44,49 +41,6 @@ state_manager = get_state_manager()
 # Page header
 st.title("🚨 Alerts Dashboard")
 st.markdown("*Real-time alert monitoring and management*")
-
-# Database Status
-try:
-    import sqlite3
-    from pathlib import Path
-
-    db_path = Path("data/alert_state.db")
-
-    if db_path.exists():
-        conn = sqlite3.connect(str(db_path))
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT COUNT(*) FROM alerts WHERE status = 'active'")
-        active_count = cursor.fetchone()[0]
-
-        cursor.execute("SELECT COUNT(*) FROM alerts WHERE status = 'acknowledged'")
-        ack_count = cursor.fetchone()[0]
-
-        cursor.execute("SELECT COUNT(*) FROM alerts WHERE status = 'resolved'")
-        resolved_count = cursor.fetchone()[0]
-
-        cursor.execute("SELECT COUNT(*) FROM alerts")
-        total_count = cursor.fetchone()[0]
-
-        conn.close()
-
-        # Show metrics
-        col1, col2, col3, col4 = st.columns(4)
-
-        with col1:
-            st.metric("🔴 Active", active_count)
-        with col2:
-            st.metric("👁️ Acknowledged", ack_count)
-        with col3:
-            st.metric("✅ Resolved", resolved_count)
-        with col4:
-            st.metric("📊 Total", total_count)
-    else:
-        st.info("📂 No alerts database found. Upload CSV data to generate alerts.")
-
-except Exception as e:
-    st.warning(f"Could not load alert statistics: {e}")
-
 st.markdown("---")
 
 # Create tabs for different views
@@ -95,31 +49,30 @@ tab1, tab2, tab3 = st.tabs(["🔔 Active Alerts", "📜 Alert History", "🔍 Se
 with tab1:
     # Active Alerts Tab
     st.markdown("## Active Alerts & Notifications")
-    
+
     # Summary metrics
     render_alert_summary_metrics(state_manager)
-    
+
     st.markdown("---")
-    
+
     # Two columns: Active alerts and acknowledged alerts
     col1, col2 = st.columns([2, 1])
-    
+
     with col1:
         # Main notification panel
-        # Use auto_refresh from sidebar settings (defined later in code)
         render_notification_panel(
             state_manager=state_manager,
-            max_alerts=100,  # Show all active alerts (increased from 10)
-            auto_refresh=False,  # Disabled by default
+            max_alerts=50,
+            auto_refresh=False,
             refresh_interval=60
         )
-    
+
     with col2:
         # Severity distribution
         render_severity_distribution(state_manager)
-        
+
         st.markdown("---")
-        
+
         # Recently acknowledged alerts
         render_acknowledged_alerts_panel(
             state_manager=state_manager,
@@ -138,17 +91,10 @@ with tab3:
     st.markdown("## 🔍 Search Alerts")
     render_search_alerts(state_manager)
 
-# Footer with refresh button
+# Footer
 st.markdown("---")
-
-# Center the refresh button
-col1, col2, col3 = st.columns([2, 1, 2])
-with col2:
-    if st.button("🔄 Refresh Page", use_container_width=True, type="primary"):
-        st.rerun()
-
 st.markdown(f"""
-<div style='text-align: center; color: gray; margin-top: 20px;'>
+<div style='text-align: center; color: gray;'>
     <p><small>Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small></p>
     <p><small>Alert Dashboard v2.0 - Powered by Artemis Health Intelligence</small></p>
 </div>
@@ -156,9 +102,7 @@ st.markdown(f"""
 
 # Sidebar controls
 with st.sidebar:
-    st.markdown("### ⚙️ Dashboard Settings")
-
-    st.markdown("#### Quick Statistics")
+    st.markdown("### 📊 Quick Statistics")
     stats = state_manager.get_statistics()
 
     st.metric("Total Alerts", stats.get('total_alerts', 0))
@@ -167,18 +111,20 @@ with st.sidebar:
     st.metric("Active Alerts", active_count)
 
     resolved_count = stats.get('by_status', {}).get('resolved', 0)
-    st.metric("Resolved Today", resolved_count)
+    st.metric("Resolved", resolved_count)
 
     st.markdown("---")
 
-    st.markdown("#### System Status")
+    st.markdown("### ⚙️ System Status")
     st.success("✅ Alert Logging: Active")
     st.success("✅ State Tracking: Active")
     st.info("💾 Database: SQLite")
 
     st.markdown("---")
 
+    if st.button("🔄 Refresh Page", use_container_width=True):
+        st.rerun()
+
     if st.button("📥 Export All Data", use_container_width=True):
-        # Export functionality
         all_alerts = state_manager.query_alerts(limit=1000)
         st.success(f"Exported {len(all_alerts)} alerts")

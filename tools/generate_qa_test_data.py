@@ -76,8 +76,9 @@ def generate_comprehensive_test_data(
         'fxa': np.zeros(total_minutes),
         'mya': np.zeros(total_minutes),
         'rza': np.zeros(total_minutes),
+        'sxg': np.zeros(total_minutes),
         'lyg': np.zeros(total_minutes),
-        'rzg': np.zeros(total_minutes),
+        'dzg': np.zeros(total_minutes),
     }
 
     # Normal baseline temperature with circadian rhythm
@@ -94,15 +95,17 @@ def generate_comprehensive_test_data(
             data['rza'][start_idx:end_idx] = np.random.uniform(-0.9, -0.6, end_idx - start_idx)
             data['fxa'][start_idx:end_idx] = np.random.normal(0, 0.05, end_idx - start_idx)
             data['mya'][start_idx:end_idx] = np.random.normal(0, 0.05, end_idx - start_idx)
+            data['sxg'][start_idx:end_idx] = np.random.normal(0, 2, end_idx - start_idx)
             data['lyg'][start_idx:end_idx] = np.random.normal(0, 2, end_idx - start_idx)
-            data['rzg'][start_idx:end_idx] = np.random.normal(0, 2, end_idx - start_idx)
+            data['dzg'][start_idx:end_idx] = np.random.normal(0, 2, end_idx - start_idx)
 
         elif state == 'standing':
             data['rza'][start_idx:end_idx] = np.random.uniform(0.7, 0.9, end_idx - start_idx)
             data['fxa'][start_idx:end_idx] = np.random.normal(0, 0.1, end_idx - start_idx)
             data['mya'][start_idx:end_idx] = np.random.normal(0, 0.1, end_idx - start_idx)
+            data['sxg'][start_idx:end_idx] = np.random.normal(0, 3, end_idx - start_idx)
             data['lyg'][start_idx:end_idx] = np.random.normal(0, 3, end_idx - start_idx)
-            data['rzg'][start_idx:end_idx] = np.random.normal(0, 3, end_idx - start_idx)
+            data['dzg'][start_idx:end_idx] = np.random.normal(0, 3, end_idx - start_idx)
 
         elif state == 'walking':
             data['rza'][start_idx:end_idx] = np.random.uniform(0.5, 0.8, end_idx - start_idx)
@@ -112,8 +115,9 @@ def generate_comprehensive_test_data(
                 t = (i - start_idx) / 60.0
                 data['fxa'][i] = 0.3 * np.sin(2 * np.pi * step_freq * t) + np.random.normal(0, 0.1)
             data['mya'][start_idx:end_idx] = np.random.normal(0, 0.15, end_idx - start_idx)
+            data['sxg'][start_idx:end_idx] = np.random.normal(0, 8, end_idx - start_idx)
             data['lyg'][start_idx:end_idx] = np.random.normal(0, 8, end_idx - start_idx)
-            data['rzg'][start_idx:end_idx] = np.random.normal(0, 8, end_idx - start_idx)
+            data['dzg'][start_idx:end_idx] = np.random.normal(0, 8, end_idx - start_idx)
 
         elif state == 'ruminating':
             data['rza'][start_idx:end_idx] = np.random.uniform(-0.9, -0.6, end_idx - start_idx)
@@ -123,22 +127,25 @@ def generate_comprehensive_test_data(
                 data['mya'][i] = 0.12 * np.sin(2 * np.pi * 0.83 * t) + np.random.normal(0, 0.03)
                 data['lyg'][i] = 10 * np.sin(2 * np.pi * 0.83 * t) + np.random.normal(0, 2)
             data['fxa'][start_idx:end_idx] = np.random.normal(0, 0.05, end_idx - start_idx)
-            data['rzg'][start_idx:end_idx] = np.random.normal(0, 2, end_idx - start_idx)
+            data['sxg'][start_idx:end_idx] = np.random.normal(0, 2, end_idx - start_idx)
+            data['dzg'][start_idx:end_idx] = np.random.normal(0, 2, end_idx - start_idx)
 
         elif state == 'feeding':
             data['rza'][start_idx:end_idx] = np.random.uniform(0.5, 0.7, end_idx - start_idx)
             data['lyg'][start_idx:end_idx] = np.random.uniform(-25, -15, end_idx - start_idx)  # Head down
             data['mya'][start_idx:end_idx] = np.random.normal(0, 0.2, end_idx - start_idx)
             data['fxa'][start_idx:end_idx] = np.random.normal(0, 0.1, end_idx - start_idx)
-            data['rzg'][start_idx:end_idx] = np.random.normal(0, 5, end_idx - start_idx)
+            data['sxg'][start_idx:end_idx] = np.random.normal(0, 5, end_idx - start_idx)
+            data['dzg'][start_idx:end_idx] = np.random.normal(0, 5, end_idx - start_idx)
 
         elif state == 'inactive':
             # Complete stillness
             data['rza'][start_idx:end_idx] = 0.0
             data['fxa'][start_idx:end_idx] = 0.0
             data['mya'][start_idx:end_idx] = 0.0
+            data['sxg'][start_idx:end_idx] = 0.0
             data['lyg'][start_idx:end_idx] = 0.0
-            data['rzg'][start_idx:end_idx] = 0.0
+            data['dzg'][start_idx:end_idx] = 0.0
 
     # Generate daily patterns with all behaviors
     for day in range(days):
