@@ -121,11 +121,12 @@ def generate_comprehensive_test_data(
 
         elif state == 'ruminating':
             data['rza'][start_idx:end_idx] = np.random.uniform(-0.9, -0.6, end_idx - start_idx)
-            # Rumination has specific jaw movement frequency (50 cycles/min = 0.83 Hz)
-            for i in range(start_idx, end_idx):
-                t = (i - start_idx) / 60.0
-                data['mya'][i] = 0.12 * np.sin(2 * np.pi * 0.83 * t) + np.random.normal(0, 0.03)
-                data['lyg'][i] = 10 * np.sin(2 * np.pi * 0.83 * t) + np.random.normal(0, 2)
+            # Rumination detection requires: mya_variance > 0.08, lyg_variance > 6.0
+            # At 1 sample/min, we need high variance in 5-sample windows
+            # Solution: Use normal distribution with std=0.35 for mya (produces var ~0.12)
+            # and std=4.0 for lyg (produces var ~16)
+            data['mya'][start_idx:end_idx] = np.random.normal(0, 0.35, end_idx - start_idx)
+            data['lyg'][start_idx:end_idx] = np.random.normal(0, 4.0, end_idx - start_idx)
             data['fxa'][start_idx:end_idx] = np.random.normal(0, 0.05, end_idx - start_idx)
             data['sxg'][start_idx:end_idx] = np.random.normal(0, 2, end_idx - start_idx)
             data['dzg'][start_idx:end_idx] = np.random.normal(0, 2, end_idx - start_idx)
