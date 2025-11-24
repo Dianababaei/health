@@ -1,4 +1,8 @@
 # ============================================================
+# Artemis Health - Real-Time Service Configuration
+# ============================================================
+# Configuration for MQTT subscriber and real-time data ingestion
+# Last Updated: 2025-11-19
 # Real-time MQTT Service Configuration
 # ============================================================
 # Configuration for the real-time livestock health monitoring
@@ -17,6 +21,115 @@
 # ------------------------------------------------------------
 # MQTT Broker Settings
 # ------------------------------------------------------------
+mqtt:
+  # Broker connection details
+  broker_host: localhost         # MQTT broker hostname or IP
+  broker_port: 1883              # MQTT broker port (1883=standard, 8883=TLS)
+  
+  # Topic configuration
+  topic_pattern: "artemis/sensors/+"  # MQTT topic pattern (+ = wildcard for cow_id)
+  
+  # Client settings
+  client_id: "artemis_subscriber"      # Unique client identifier
+  keepalive: 60                        # Keep-alive interval (seconds)
+  qos: 1                               # Quality of Service (0=at most once, 1=at least once, 2=exactly once)
+  
+  # Authentication (optional)
+  username: null                 # MQTT username (null = no authentication)
+  password: null                 # MQTT password (null = no authentication)
+  
+  # Reconnection settings
+  reconnect:
+    initial_delay: 5             # Initial reconnection delay (seconds)
+    max_delay: 60                # Maximum reconnection delay (seconds)
+    backoff_multiplier: 2        # Exponential backoff multiplier
+
+# ------------------------------------------------------------
+# Database Settings
+# ------------------------------------------------------------
+database:
+  path: "data/alert_state.db"   # SQLite database path (shared with alert system)
+
+# ------------------------------------------------------------
+# Logging Settings
+# ------------------------------------------------------------
+logging:
+  level: INFO                    # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # File logging (optional)
+  file:
+    enabled: true
+    path: "logs/realtime_service.log"
+    max_bytes: 10485760          # 10 MB
+    backup_count: 5
+
+# ------------------------------------------------------------
+# Message Validation Settings
+# ------------------------------------------------------------
+validation:
+  # Temperature range for cattle (°C)
+  temperature:
+    min: 35.0
+    max: 42.0
+  
+  # Accelerometer range (g-force)
+  accelerometer:
+    min: -2.0
+    max: 2.0
+  
+  # Required fields (must be present in every message)
+  required_fields:
+    - cow_id
+    - timestamp
+    - temperature
+    - fxa
+    - mya
+    - rza
+  
+  # Optional fields (validated if present)
+  optional_fields:
+    - sxg
+    - lyg
+    - dzg
+    - state
+    - motion_intensity
+
+# ------------------------------------------------------------
+# Performance Settings
+# ------------------------------------------------------------
+performance:
+  # Statistics logging interval
+  stats_interval: 60             # Log statistics every N seconds
+  stats_message_count: 100       # Or every N messages (whichever comes first)
+  
+  # Message processing
+  max_queue_size: 1000           # Maximum messages in processing queue
+  worker_threads: 4              # Number of worker threads for message processing
+
+# ------------------------------------------------------------
+# Notes
+# ------------------------------------------------------------
+# - MQTT topic pattern format: "artemis/sensors/{cow_id}"
+#   Example topics: "artemis/sensors/COW001", "artemis/sensors/COW042"
+# 
+# - Message format (JSON):
+#   {
+#     "cow_id": "COW001",
+#     "timestamp": "2025-11-19T10:30:00Z",
+#     "temperature": 38.5,
+#     "fxa": -0.04,
+#     "mya": 0.01,
+#     "rza": -0.88,
+#     "sxg": -2.88,   (optional)
+#     "lyg": 0.14,    (optional)
+#     "dzg": 1.87     (optional)
+#   }
+#
+# - For production deployment with TLS:
+#   1. Set broker_port to 8883
+#   2. Add TLS certificate configuration
+#   3. Enable authentication with username/password
 # Configuration for connecting to the MQTT message broker
 mqtt:
   # Broker connection details
