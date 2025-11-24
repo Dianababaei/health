@@ -247,19 +247,19 @@ def create_contributing_factors_display(
         return None
     
     if show_as_chart:
-        # Create horizontal bar chart
-        factor_names = list(factors.keys())
-        factor_values = list(factors.values())
-        
+        # Create horizontal bar chart (exclude alert_impact - not useful)
+        filtered_factors = {k: v for k, v in factors.items() if k != 'alert_impact'}
+        factor_names = list(filtered_factors.keys())
+        factor_values = list(filtered_factors.values())
+
         # Define colors for each factor
         color_map = {
             'temperature_stability': '#FF6B6B',
             'activity_level': '#4ECDC4',
             'behavioral_consistency': '#45B7D1',
             'rumination_quality': '#96CEB4',
-            'alert_impact': '#FFEAA7',
         }
-        
+
         colors = [color_map.get(name, '#95A5A6') for name in factor_names]
         
         # Create bar chart
@@ -310,24 +310,22 @@ def display_contributing_factors_streamlit(factors: Dict[str, float]):
     st.subheader("Contributing Factors Breakdown")
     
     # Define colors and icons for each factor
+    # NOTE: alert_impact removed - not useful (just 2-3 alerts = 0%, duplicates Alerts page)
     factor_config = {
         'temperature_stability': {'icon': '🌡️', 'color': '#FF6B6B', 'label': 'Temperature Stability', 'desc': 'Higher is better'},
         'activity_level': {'icon': '🏃', 'color': '#4ECDC4', 'label': 'Activity Level', 'desc': 'Higher is better'},
         'behavioral_consistency': {'icon': '🎯', 'color': '#45B7D1', 'label': 'Behavioral Consistency', 'desc': 'Higher is better'},
-        'rumination_quality': {'icon': '🐄', 'color': '#96CEB4', 'label': 'Rumination Quality', 'desc': 'Higher is better'},
-        'alert_impact': {'icon': '⚠️', 'color': '#FFEAA7', 'label': 'Alert Status', 'desc': '0%=many alerts, 100%=no alerts'},
+        'rumination_quality': {'icon': '🐄', 'color': '#96CEB4', 'label': 'Rumination Quality', 'desc': 'DISABLED (requires >=10 Hz sampling)'},
     }
 
-    # Display each factor with progress bar
+    # Display each factor with progress bar (skip alert_impact - not useful)
     for factor_name, percentage in factors.items():
-        config = factor_config.get(factor_name, {'icon': '📊', 'color': '#95A5A6', 'label': factor_name, 'desc': ''})
-
-        # Format label with description for alert_impact
+        # Skip alert_impact - duplicates Alerts page, scale is confusing
         if factor_name == 'alert_impact':
-            label = f"{config['icon']} {config['label']}"
-            st.markdown(f"**{label}** <small style='color: #888;'>({config['desc']})</small>", unsafe_allow_html=True)
-        else:
-            st.markdown(f"**{config['icon']} {config['label']}**")
+            continue
+
+        config = factor_config.get(factor_name, {'icon': '📊', 'color': '#95A5A6', 'label': factor_name, 'desc': ''})
+        st.markdown(f"**{config['icon']} {config['label']}**")
 
         col1, col2 = st.columns([4, 1])
 

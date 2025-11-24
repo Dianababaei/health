@@ -371,12 +371,12 @@ st.markdown("---")
 st.markdown("""
 ### 📊 About Health Scores
 
-The health score (0-100) is calculated based on multiple factors:
+The health score (0-100) is calculated based on three core factors:
 
 - **Temperature Stability (30%)**: Body temperature patterns and deviation from baseline
 - **Activity Level (25%)**: Movement patterns and overall physical activity
 - **Behavioral Consistency (25%)**: Normal behavioral patterns (lying, standing, walking, feeding)
-- **Alert Impact (20%)**: Penalty for active health alerts
+- **Alert Penalty (20%)**: Deductions for active health alerts (see Alerts page for details)
 
 > **Note:** Rumination detection is currently **disabled** due to sampling rate limitation.
 > Accurate rumination detection requires ≥10 Hz sampling to detect jaw movement at 1.0-1.5 Hz.
@@ -392,6 +392,6 @@ The health score (0-100) is calculated based on multiple factors:
 The baseline score is calculated as the rolling average over the last 30 days of available data.
 The delta indicator shows how the current score compares to this historical baseline.
 
-**Data Display:**
-All available health score data is shown (no time filtering). The chart displays the complete history of health scores in the database.
+**Health Score History Chart:**
+Shows the time-series of health scores over all available data. The blue line tracks how the cow's health has changed over time, while the green dashed line shows the 30-day baseline average for comparison.
 """)

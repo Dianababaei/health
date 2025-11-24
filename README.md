@@ -4,170 +4,254 @@ Production-ready cattle health monitoring using neck-mounted sensors. Transforms
 
 ---
 
-## 🚀 Quick Start
-
-```bash
-# Start the dashboard
-streamlit run dashboard/app.py
-```
-
-Demo data is pre-loaded for immediate evaluation.
-
----
-
-## 📊 System Overview
-
-### Three-Layer Intelligence Architecture
-
-**Layer 1 - Behavioral Classification**
-- Real-time activity detection: lying, standing, walking, ruminating, feeding
-- Activity metrics: motion intensity, rest duration, behavioral patterns
-- Based on 20+ peer-reviewed studies (cattle accelerometry research)
-
-**Layer 2 - Physiological Analysis**
-- Temperature baseline tracking with circadian rhythm adjustment
-- Multi-day trend analysis for early deviation detection
-- Temperature-activity correlation analysis
-
-**Layer 3 - Health Intelligence**
-- **Critical Alerts**: Fever (>39.5°C + low motion), heat stress, prolonged inactivity
-- **Health Scoring**: 0-100 composite score (temperature, activity, behavioral, alerts)
-- **Reproductive Monitoring**: Estrus detection (informational alerts only)
-- **Sensor Quality**: Malfunction detection and data validation
-
----
-
-## 🎯 Dashboard Features
-
-### Three Main Pages:
-
-1. **Home** - Real-time overview, health metrics, data upload
-2. **Alerts** - Alert management, history, and dismissal tracking
-3. **Health Analysis** - Multi-day trends, behavioral patterns, scoring history
-
----
-
-## 📁 Project Structure
-
-```
-livestock/health/
-├── dashboard/              # Streamlit web interface
-│   ├── pages/             # Dashboard pages (Home, Alerts, Analysis)
-│   ├── components/        # Reusable UI components
-│   └── utils/             # Data loading, visualization utilities
-├── src/
-│   ├── data_processing/   # Data ingestion, validation, windowing
-│   ├── layer1/            # Behavioral classification
-│   ├── layer1_behavior/   # Activity metrics calculation
-│   ├── layer2_physiological/ # Baseline tracking, trend analysis
-│   └── health_intelligence/
-│       ├── alerts/        # Immediate alert detection
-│       ├── scoring/       # Health score calculation
-│       ├── reproductive/  # Estrus/pregnancy detection
-│       └── logging/       # Alert & score persistence
-├── data/
-│   ├── dashboard/         # User-uploaded sensor data
-│   └── alert_state.db     # SQLite database (alerts & health scores)
-└── tools/                 # Test data generators and utilities
-```
-
----
-
-## 📚 Documentation
-
-**Getting Started:**
-- [QUICK_START.md](QUICK_START.md) - 30-second setup guide
-- [UPLOAD_WORKFLOW.md](UPLOAD_WORKFLOW.md) - How to upload sensor data
-
-**Production & Operations:**
-- [PRODUCTION_GUIDE.md](PRODUCTION_GUIDE.md) - Deployment procedures and best practices
-- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common issues and solutions
-- [DATA_STORAGE_EXPLAINED.md](DATA_STORAGE_EXPLAINED.md) - Data flow and storage
-
----
-
-## 🔬 Scientific Validation
-
-All algorithms are based on peer-reviewed research:
-
-- **Behavioral Classification**: Validated against 20+ published studies on cattle accelerometry
-- **Temperature Thresholds**: Clinical veterinary standards (fever >39.5°C, heat stress >39.0°C)
-- **Activity Patterns**: Cattle-specific thresholds from animal behavior research
-- **Estrus Detection**: Physiological parameters from reproductive biology studies
-
-**Important**: Estrus and pregnancy alerts are INFORMATIONAL ONLY and require veterinary confirmation.
-
----
-
-## 🛠️ Technology Stack
-
-- **Backend**: Python 3.8+
-- **Database**: SQLite (production: PostgreSQL recommended for multi-server)
-- **Web Framework**: Streamlit
-- **Data Processing**: pandas, NumPy, SciPy
-- **Sensor Specifications**: 3-axis accelerometer + gyroscope + temperature (1 sample/minute)
-
----
-
-## 📋 Requirements
+## Quick Start
 
 ```bash
 # Install dependencies
 pip install -r requirements.txt
 
-# Key packages:
-# - streamlit
-# - pandas
-# - numpy
-# - scipy
-# - scikit-learn
+# Start the dashboard
+streamlit run dashboard/app.py
+```
+
+Open browser at http://localhost:8501
+
+---
+
+## System Overview
+
+### Three-Layer Intelligence Architecture
+
+| Layer | Function | Output |
+|-------|----------|--------|
+| **Layer 1** | Behavioral Classification | lying, standing, walking, feeding states |
+| **Layer 2** | Physiological Analysis | Temperature baselines, circadian adjustment |
+| **Layer 3** | Health Intelligence | Alerts, health scores, reproductive events |
+
+### Alert Types
+
+| Alert | Severity | Trigger |
+|-------|----------|---------|
+| Fever | Critical | Temperature >39.5C + low activity |
+| Heat Stress | Warning | Temperature >39.0C sustained |
+| Prolonged Inactivity | Warning | Lying >6 hours continuously |
+| Sensor Malfunction | Critical | Temperature out of range or stuck values |
+| Estrus | Info | Temperature + activity patterns (informational only) |
+
+### Health Score (0-100)
+
+Calculated from four components:
+- **Temperature Stability (30%)**: Deviation from baseline
+- **Activity Level (25%)**: Movement patterns
+- **Behavioral Consistency (25%)**: Normal behavior ratios
+- **Alert Penalty (20%)**: Active alerts reduce score
+
+| Score | Category | Action |
+|-------|----------|--------|
+| 80-100 | Excellent | Normal monitoring |
+| 60-79 | Good | Routine monitoring |
+| 40-59 | Moderate | Increased monitoring |
+| 0-39 | Poor | Immediate attention |
+
+---
+
+## Dashboard Pages
+
+### 1. Home
+- Upload raw sensor CSV data
+- View current health score
+- See active alerts summary
+- Monitor live sensor readings
+
+### 2. Alerts
+- View all detected alerts
+- Acknowledge/resolve alerts
+- Alert history and timeline
+
+### 3. Health Analysis
+- Health score trends over time
+- Component breakdown (temperature, activity, behavioral)
+- Baseline comparison
+- Recommendations
+
+---
+
+## Data Upload
+
+### Required CSV Format
+
+```csv
+timestamp,temperature,fxa,mya,rza,sxg,lyg,dzg
+2025-11-13 16:10:00,38.5,-0.04,0.01,-0.88,-2.88,0.14,1.87
+```
+
+| Column | Description | Required |
+|--------|-------------|----------|
+| timestamp | ISO datetime | Yes |
+| temperature | Body temp (C) | Yes |
+| fxa | Forward acceleration (g) | Yes |
+| mya | Lateral acceleration (g) | Yes |
+| rza | Vertical acceleration (g) | Yes |
+| sxg, lyg, dzg | Gyroscope (deg/s) | Optional |
+
+### Upload Process
+
+1. Open dashboard Home page
+2. Set Cow ID and baseline temperature in sidebar
+3. Upload CSV file
+4. System automatically processes through all 3 layers
+5. View results on all pages
+
+### Data Storage
+
+- **Sensor data**: Appended to SQLite (no overwrites, deduplication by timestamp)
+- **Health scores**: New record per upload, stored in `health_scores` table
+- **Alerts**: Stored in `alerts` table with status tracking
+- **Database file**: `data/alert_state.db`
+
+---
+
+## Project Structure
+
+```
+livestock/health/
+├── dashboard/              # Streamlit web interface
+│   ├── pages/             # Home, Alerts, Health Analysis
+│   ├── components/        # Notification panel, UI components
+│   └── utils/             # Data loading, visualizations
+├── src/
+│   ├── data_processing/   # CSV parsing, validation, windowing
+│   ├── layer1/            # Rule-based behavioral classifier
+│   ├── layer1_behavior/   # Activity metrics calculation
+│   ├── layer2_physiological/ # Baseline tracking, trends
+│   └── health_intelligence/
+│       ├── alerts/        # Immediate alert detection
+│       ├── scoring/       # Health score calculation
+│       ├── reproductive/  # Estrus/pregnancy detection
+│       └── logging/       # Database managers
+├── data/
+│   ├── dashboard/         # Uploaded sensor data
+│   └── alert_state.db     # SQLite database
+└── tools/                 # Test data generators
 ```
 
 ---
 
-## ⚠️ Important Notes
+## Scientific Basis
 
-### Informational Alerts
-- **Estrus Detection**: Informational only - requires manual observation and veterinary consultation
-- **Pregnancy Detection**: Experimental feature - not for diagnostic use
+All thresholds are based on peer-reviewed research:
 
-### Data Privacy
-- All sensor data stored locally
-- No external data transmission
-- Complies with farm data management standards
+- **Behavioral Classification**: 20+ published cattle accelerometry studies
+- **Temperature Thresholds**: Clinical veterinary standards
+- **Activity Patterns**: Cattle-specific behavioral research
+- **Estrus Detection**: Reproductive biology studies
 
-### Sensor Requirements
-- Sampling rate: 1 sample per minute minimum
-- Required sensors: 3-axis accelerometer (Fxa, Mya, Rza), temperature
-- Optional: Gyroscope (Lyg, Rzg) for enhanced accuracy
+### Important Limitations
 
----
+**Rumination Detection: DISABLED**
+- Requires >=10 Hz sampling to detect 1 Hz jaw movement
+- Current system uses 1 sample/minute
+- Not scientifically valid at this sampling rate
+- References: Schirmann et al. 2009, Burfeind et al. 2011
 
-## ✅ Production Status
-
-**System is production-ready** with the following validations:
-- ✅ All core algorithms implemented and tested
-- ✅ Scientific accuracy verified against literature
-- ✅ Real-time alert detection (<2 minute latency)
-- ✅ Database persistence for alerts and health scores
-- ✅ Comprehensive error handling and logging
-- ✅ Data validation and sensor malfunction detection
-- ✅ Clean codebase with proper documentation
-
-**Recommended for Production Deployment:**
-- Single-farm operations: Use as-is with SQLite
-- Multi-farm/enterprise: Migrate to PostgreSQL for scalability
-- Add authentication layer if exposed over network
-- Implement backup procedures for alert database
+**Reproductive Alerts: INFORMATIONAL ONLY**
+- Estrus and pregnancy alerts require veterinary confirmation
+- Not for diagnostic use
 
 ---
 
-## 📞 Support
+## Troubleshooting
 
-For technical support or questions about deployment, refer to:
-- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common issues
-- [PRODUCTION_GUIDE.md](PRODUCTION_GUIDE.md) for deployment procedures
+### Health Scores Not Showing
+
+1. Check database exists: `data/alert_state.db`
+2. Verify upload shows "Saved to database" message
+3. Check cow ID matches between uploads
+
+### No Alerts Detected
+
+1. Verify data contains anomalies (fever, inactivity)
+2. Check temperature column has valid values
+3. Review alert thresholds in `src/health_intelligence/alerts/`
+
+### Dashboard Not Loading
+
+```bash
+# Check dependencies
+pip install streamlit pandas numpy scipy plotly
+
+# Restart dashboard
+streamlit run dashboard/app.py --server.port 8501
+```
+
+### Reset Database
+
+```bash
+# Windows
+del data\alert_state.db
+
+# Linux/Mac
+rm data/alert_state.db
+```
+
+Next upload will create fresh database.
 
 ---
 
-**Built for livestock health and welfare 🐄**
+## Production Deployment
+
+### Single Farm (Default)
+- Use SQLite database (included)
+- No additional setup required
+
+### Multi-Farm / Enterprise
+- Migrate to PostgreSQL for scalability
+- Add authentication layer
+- Implement backup procedures
+- Consider TimescaleDB for time-series optimization
+
+### Monitoring
+
+Watch for these metrics in dashboard:
+- **Health Scores**: Should increase after each upload
+- **Active Alerts**: Alerts requiring attention
+- **Data Range**: Time span covered by uploads
+
+---
+
+## Technology Stack
+
+- **Python**: 3.8+
+- **Web Framework**: Streamlit
+- **Database**: SQLite (PostgreSQL for production)
+- **Data Processing**: pandas, NumPy, SciPy
+- **Visualization**: Plotly
+
+---
+
+## Requirements
+
+```bash
+pip install -r requirements.txt
+```
+
+Key packages:
+- streamlit
+- pandas
+- numpy
+- scipy
+- plotly
+- scikit-learn
+
+---
+
+## Sensor Specifications
+
+- **Sampling Rate**: 1 sample per minute (minimum)
+- **Required Sensors**: 3-axis accelerometer, temperature
+- **Optional**: 3-axis gyroscope (enhances accuracy)
+- **Mounting**: Neck collar
+
+---
+
+**Artemis Livestock Health Monitoring System**

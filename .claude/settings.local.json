@@ -15,7 +15,8 @@
       "Bash(del ALERT_DASHBOARD_FIXES.md README_TESTING.md TEST_DATA_SUMMARY.md SIMULATION_WORKFLOW.md SYSTEM_REVIEW.md DEMO_DATA_README.md README_OLD.md README_APPS.md FINAL_SUMMARY.md)",
       "Bash(git add:*)",
       "Bash(git rm:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git restore:*)"
     ],
     "deny": [],
     "ask": []
