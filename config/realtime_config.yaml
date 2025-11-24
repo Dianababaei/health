@@ -1,0 +1,300 @@
+# ============================================================
+# Real-time MQTT Service Configuration
+# ============================================================
+# Configuration for the real-time livestock health monitoring
+# service using MQTT protocol for sensor data ingestion and
+# continuous health surveillance.
+#
+# This configuration supports single-farm local deployment
+# with default settings suitable for Mosquitto MQTT broker.
+#
+# To use this configuration programmatically:
+#   import yaml
+#   with open('config/realtime_config.yaml') as f:
+#       config = yaml.safe_load(f)
+# ============================================================
+
+# ------------------------------------------------------------
+# MQTT Broker Settings
+# ------------------------------------------------------------
+# Configuration for connecting to the MQTT message broker
+mqtt:
+  # Broker connection details
+  host: "localhost"                    # MQTT broker hostname/IP (local Mosquitto)
+  port: 1883                           # MQTT broker port (1883 = standard, 8883 = TLS)
+  
+  # Topic configuration
+  topic_pattern: "artemis/sensors/+"   # Topic pattern for sensor data
+                                       # '+' is wildcard for single level (e.g., artemis/sensors/COW_001)
+                                       # Use '#' for multi-level wildcard if needed
+  
+  # Quality of Service (QoS) level
+  qos: 1                               # QoS level: 0 = at most once, 1 = at least once, 2 = exactly once
+                                       # QoS 1 recommended for reliable delivery without overhead
+  
+  # Connection settings
+  keepalive: 60                        # Keepalive interval in seconds (heartbeat to maintain connection)
+  clean_session: true                  # Start with clean session (don't persist subscriptions)
+  
+  # Authentication (optional - uncomment and configure if broker requires auth)
+  # username: "artemis_service"        # MQTT username
+  # password: "secure_password"        # MQTT password (use environment variable in production)
+  
+  # TLS/SSL settings (optional - uncomment for secure connection)
+  # use_tls: false                     # Enable TLS/SSL encryption
+  # ca_certs: "path/to/ca.crt"         # Path to CA certificate
+  # certfile: "path/to/client.crt"     # Path to client certificate
+  # keyfile: "path/to/client.key"      # Path to client private key
+  
+  # Connection retry settings
+  reconnect_on_failure: true           # Automatically reconnect on connection loss
+  max_reconnect_delay: 120             # Maximum delay between reconnection attempts (seconds)
+  reconnect_backoff: 2                 # Exponential backoff multiplier for reconnection
+
+# ------------------------------------------------------------
+# Database Configuration
+# ------------------------------------------------------------
+# Shared SQLite database for alert state and health metrics
+database:
+  # Database file path (relative to project root)
+  path: "data/alert_state.db"         # SQLite database for persistent storage
+  
+  # Connection settings
+  timeout: 30                          # Database lock timeout in seconds
+  check_same_thread: false             # Allow multi-threaded access (required for service)
+  
+  # Write-ahead logging for better concurrency
+  enable_wal: true                     # Enable WAL mode for concurrent reads/writes
+  
+  # Database maintenance
+  auto_vacuum: true                    # Automatically reclaim unused space
+  
+  # Connection pooling
+  pool_size: 5                         # Number of database connections to maintain
+  max_overflow: 10                     # Maximum additional connections beyond pool_size
+
+# ------------------------------------------------------------
+# Logging Configuration
+# ------------------------------------------------------------
+# Logging settings for service monitoring and debugging
+logging:
+  # Log file location
+  log_file: "logs/realtime_service.log"  # Main service log file
+  
+  # Log level
+  level: "INFO"                        # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+                                       # DEBUG: Verbose logging for development
+                                       # INFO: Standard operational logging (recommended)
+                                       # WARNING: Only warnings and errors
+                                       # ERROR: Only errors and critical issues
+  
+  # Log format
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  date_format: "%Y-%m-%d %H:%M:%S"     # Timestamp format
+  
+  # Log rotation settings
+  max_bytes: 10485760                  # Maximum log file size (10 MB)
+  backup_count: 5                      # Number of backup log files to keep
+  
+  # Component-specific log levels (override main level)
+  component_levels:
+    mqtt_subscriber: "INFO"            # MQTT client logging
+    alert_detector: "INFO"             # Alert detection logging
+    scheduler: "INFO"                  # Task scheduler logging
+    database: "WARNING"                # Database operations (only warnings/errors)
+  
+  # Additional logging options
+  log_to_console: true                 # Also log to console/stdout
+  console_level: "INFO"                # Console log level (can differ from file)
+
+# ------------------------------------------------------------
+# Detector Schedules
+# ------------------------------------------------------------
+# Scheduling intervals for periodic health assessment tasks
+detector_schedules:
+  # Immediate alert detection (fever, heat stress, sensor malfunction)
+  immediate_detection:
+    interval_minutes: 2                # Run every 2 minutes for near real-time alerts
+    description: "Rapid detection of critical conditions requiring immediate attention"
+    enabled: true
+  
+  # Prolonged inactivity detection
+  inactivity_detection:
+    interval_minutes: 30               # Run every 30 minutes for inactivity assessment
+    description: "Detect prolonged periods of abnormal stillness"
+    enabled: true
+  
+  # Health score calculation
+  health_scoring:
+    interval_minutes: 15               # Run every 15 minutes for health score updates
+    description: "Calculate comprehensive health scores for all active animals"
+    enabled: true
+  
+  # Estrus (heat) detection
+  estrus_detection:
+    interval_hours: 6                  # Run every 6 hours for reproductive health assessment
+    description: "Detect estrus cycles and breeding readiness indicators"
+    enabled: true
+  
+  # Baseline recalculation (daily maintenance)
+  baseline_update:
+    interval_hours: 24                 # Run once daily for baseline temperature updates
+    description: "Update individual baseline temperatures with circadian rhythm"
+    enabled: true
+    run_at_hour: 2                     # Run at 2 AM (low activity period)
+  
+  # Database cleanup and maintenance
+  database_maintenance:
+    interval_hours: 168                # Run weekly (168 hours)
+    description: "Clean up old records and optimize database"
+    enabled: true
+    run_at_day: "sunday"               # Run on Sundays
+    run_at_hour: 3                     # Run at 3 AM
+
+# ------------------------------------------------------------
+# Active Cow Threshold
+# ------------------------------------------------------------
+# Configuration for identifying actively monitored animals
+active_cow_threshold:
+  # Time window for active status
+  time_window_hours: 24                # Consider cow active if data received within 24 hours
+  
+  # Activity determination criteria
+  min_messages_per_hour: 1             # Minimum messages per hour to consider active
+  min_unique_sensors: 1                # Minimum number of unique sensors reporting
+  
+  # Inactivity alert threshold
+  alert_if_inactive_hours: 2           # Alert if no data received for 2+ hours
+  
+  # Exclusion criteria
+  exclude_known_offline: true          # Exclude cows marked as offline in database
+  exclude_maintenance_mode: true       # Exclude cows in maintenance/calibration mode
+  
+  # Active cow tracking
+  track_last_seen: true                # Track last message timestamp for each cow
+  update_frequency_minutes: 5          # Update active cow list every 5 minutes
+
+# ------------------------------------------------------------
+# Message Processing
+# ------------------------------------------------------------
+# Configuration for MQTT message handling and validation
+message_processing:
+  # Message format validation
+  expected_format: "json"              # Expected message format (json, csv, binary)
+  validate_schema: true                # Validate message against expected schema
+  
+  # Required fields in sensor messages
+  required_fields:
+    - "cow_id"                         # Animal identifier
+    - "timestamp"                      # Message timestamp
+    - "temperature"                    # Body temperature (°C)
+    - "fxa"                            # Fore-aft acceleration
+    - "mya"                            # Medial-lateral acceleration
+    - "rza"                            # Vertical acceleration
+  
+  # Optional fields (nice to have but not required)
+  optional_fields:
+    - "sxg"                            # Sagittal angular velocity
+    - "lyg"                            # Lateral angular velocity
+    - "dzg"                            # Dorsal angular velocity
+    - "battery_level"                  # Sensor battery level
+    - "signal_strength"                # MQTT signal quality
+  
+  # Message buffering
+  buffer_size: 1000                    # Maximum messages to buffer before processing
+  flush_interval_seconds: 30           # Force buffer flush every 30 seconds
+  
+  # Error handling
+  max_retries: 3                       # Retry failed message processing
+  retry_delay_seconds: 5               # Delay between retries
+  dead_letter_queue: true              # Store failed messages for later review
+  dlq_path: "logs/failed_messages.json"  # Dead letter queue file path
+
+# ------------------------------------------------------------
+# Performance Tuning
+# ------------------------------------------------------------
+# Settings for optimizing service performance
+performance:
+  # Threading configuration
+  worker_threads: 4                    # Number of worker threads for message processing
+  max_queue_size: 500                  # Maximum message queue size
+  
+  # Batch processing
+  enable_batch_processing: true        # Process messages in batches
+  batch_size: 50                       # Messages per batch
+  batch_timeout_seconds: 5             # Maximum time to wait for batch to fill
+  
+  # Caching
+  cache_enabled: true                  # Enable in-memory caching
+  cache_ttl_minutes: 15                # Cache time-to-live
+  cache_max_size: 1000                 # Maximum cache entries
+  
+  # Resource limits
+  max_memory_mb: 512                   # Maximum memory usage (MB)
+  max_cpu_percent: 80                  # Maximum CPU utilization
+
+# ------------------------------------------------------------
+# Alert Configuration
+# ------------------------------------------------------------
+# Integration with alert detection system
+alerts:
+  # Alert threshold configuration file
+  threshold_config: "config/alert_thresholds.yaml"
+  
+  # Alert deduplication
+  enable_deduplication: true           # Prevent duplicate alerts
+  deduplication_window_minutes: 30     # Time window for deduplication
+  
+  # Alert persistence
+  persist_to_database: true            # Store alerts in database
+  persist_to_log: true                 # Log alerts to file
+  alert_log_file: "logs/alerts/realtime_alerts.log"
+  
+  # Alert notification (future integration)
+  enable_notifications: false          # Enable external notifications (email, SMS, etc.)
+  notification_config: null            # Path to notification configuration
+
+# ------------------------------------------------------------
+# Service Management
+# ------------------------------------------------------------
+# Settings for service lifecycle and monitoring
+service:
+  # Service identification
+  service_name: "artemis_realtime_service"
+  service_version: "1.0.0"
+  
+  # Graceful shutdown
+  shutdown_timeout_seconds: 30         # Maximum time to wait for graceful shutdown
+  
+  # Health check endpoint (for monitoring)
+  enable_health_check: true            # Enable health check endpoint
+  health_check_port: 8080              # HTTP port for health checks
+  health_check_interval_seconds: 60    # Health check reporting interval
+  
+  # Startup behavior
+  wait_for_broker: true                # Wait for MQTT broker before starting
+  max_startup_wait_seconds: 60         # Maximum time to wait for broker
+  
+  # Watchdog
+  enable_watchdog: true                # Enable watchdog for service monitoring
+  watchdog_interval_seconds: 30        # Watchdog check interval
+  watchdog_timeout_seconds: 300        # Restart service if no activity for 5 minutes
+
+# ------------------------------------------------------------
+# Development and Testing
+# ------------------------------------------------------------
+# Settings for development and testing environments
+development:
+  # Debug mode
+  debug_mode: false                    # Enable debug mode (verbose logging, etc.)
+  
+  # Dry run mode
+  dry_run: false                       # Process messages without writing to database
+  
+  # Test data generation
+  enable_test_mode: false              # Enable test mode with synthetic data
+  test_data_interval_seconds: 10       # Interval for test message generation
+  
+  # Performance profiling
+  enable_profiling: false              # Enable performance profiling
+  profile_output_path: "logs/performance_profile.txt"
