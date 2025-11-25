@@ -94,7 +94,7 @@ class ServiceOrchestrator:
                 from realtime.pipeline import DetectorPipeline
                 self.pipeline = DetectorPipeline(
                     config=self.config.get('detector', {}),
-                    database_path=DATABASE_PATH
+                    db_path=DATABASE_PATH
                 )
                 self.logger.info("DetectorPipeline initialized")
             except ImportError as e:
@@ -109,7 +109,10 @@ class ServiceOrchestrator:
             self.logger.info("Initializing DetectorScheduler...")
             try:
                 from realtime.scheduler import DetectorScheduler
-                self.scheduler = DetectorScheduler(pipeline=self.pipeline)
+                self.scheduler = DetectorScheduler(
+                    pipeline=self.pipeline,
+                    config=self.config
+                )
                 self.logger.info("DetectorScheduler initialized")
             except ImportError as e:
                 self.logger.warning(f"DetectorScheduler not available: {e}")
@@ -123,8 +126,12 @@ class ServiceOrchestrator:
             self.logger.info("Initializing MQTTSubscriber...")
             try:
                 from realtime.mqtt_subscriber import MQTTSubscriber
-                mqtt_config = self.config.get('mqtt', {})
-                self.subscriber = MQTTSubscriber(config=mqtt_config)
+                # MQTTSubscriber expects config with 'mqtt' and 'database' sections
+                subscriber_config = {
+                    'mqtt': self.config.get('mqtt', {}),
+                    'database': {'path': DATABASE_PATH}
+                }
+                self.subscriber = MQTTSubscriber(config=subscriber_config)
                 self.logger.info("MQTTSubscriber initialized")
             except ImportError as e:
                 self.logger.warning(f"MQTTSubscriber not available: {e}")

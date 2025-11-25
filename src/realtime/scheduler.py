@@ -83,10 +83,10 @@ class DetectorScheduler:
         # Job execution statistics
         self.job_stats = {
             'immediate_detection': {'success': 0, 'failure': 0, 'last_run': None, 'last_duration': None},
-            'inactivity_detection': {'success': 0, 'failure': 0, 'last_run': None, 'last_duration': None},
             'health_scoring': {'success': 0, 'failure': 0, 'last_run': None, 'last_duration': None},
             'estrus_detection': {'success': 0, 'failure': 0, 'last_run': None, 'last_duration': None},
         }
+        # Note: inactivity detection is included in immediate_detection
         
         logger.info("DetectorScheduler initialized with schedule config: %s", self.schedule_config)
     
@@ -99,10 +99,10 @@ class DetectorScheduler:
         """
         required_methods = [
             'run_immediate_detection',
-            'run_inactivity_detection',
             'run_health_scoring',
             'run_estrus_detection'
         ]
+        # Note: inactivity detection is part of run_immediate_detection
         
         missing_methods = []
         for method_name in required_methods:
@@ -233,24 +233,11 @@ class DetectorScheduler:
             replace_existing=True
         )
         logger.info(f"Scheduled immediate_detection job: every {immediate_interval} minutes")
-        
-        # Job 2: Inactivity Detection (requires 4+ hour window)
-        inactivity_interval = self.schedule_config['inactivity_interval_minutes']
-        self.scheduler.add_job(
-            func=lambda: self.job_wrapper(
-                self.pipeline.run_inactivity_detection,
-                'inactivity_detection'
-            ),
-            trigger=IntervalTrigger(minutes=inactivity_interval),
-            id='inactivity_detection',
-            name='Inactivity Detection (Prolonged Stillness)',
-            coalesce=True,
-            max_instances=1,
-            replace_existing=True
-        )
-        logger.info(f"Scheduled inactivity_detection job: every {inactivity_interval} minutes")
-        
-        # Job 3: Health Scoring
+
+        # Note: Inactivity detection is included in immediate_detection
+        # No separate job needed as ImmediateAlertDetector handles it
+
+        # Job 2: Health Scoring
         health_scoring_interval = self.schedule_config['health_scoring_interval_minutes']
         self.scheduler.add_job(
             func=lambda: self.job_wrapper(
@@ -265,8 +252,8 @@ class DetectorScheduler:
             replace_existing=True
         )
         logger.info(f"Scheduled health_scoring job: every {health_scoring_interval} minutes")
-        
-        # Job 4: Estrus Detection (pattern analysis)
+
+        # Job 3: Estrus Detection (pattern analysis)
         estrus_interval = self.schedule_config['estrus_interval_minutes']
         self.scheduler.add_job(
             func=lambda: self.job_wrapper(

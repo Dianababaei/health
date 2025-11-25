@@ -247,8 +247,10 @@ def create_contributing_factors_display(
         return None
     
     if show_as_chart:
-        # Create horizontal bar chart (exclude alert_impact - not useful)
-        filtered_factors = {k: v for k, v in factors.items() if k != 'alert_impact'}
+        # Create horizontal bar chart
+        # Exclude: alert_impact (not useful), rumination_quality (disabled)
+        filtered_factors = {k: v for k, v in factors.items()
+                           if k not in ('alert_impact', 'rumination_quality')}
         factor_names = list(filtered_factors.keys())
         factor_values = list(filtered_factors.values())
 
@@ -318,10 +320,15 @@ def display_contributing_factors_streamlit(factors: Dict[str, float]):
         'rumination_quality': {'icon': '🐄', 'color': '#96CEB4', 'label': 'Rumination Quality', 'desc': 'DISABLED (requires >=10 Hz sampling)'},
     }
 
-    # Display each factor with progress bar (skip alert_impact - not useful)
+    # Display each factor with progress bar
+    # Skip: alert_impact (duplicates Alerts page), rumination_quality (disabled)
     for factor_name, percentage in factors.items():
         # Skip alert_impact - duplicates Alerts page, scale is confusing
         if factor_name == 'alert_impact':
+            continue
+
+        # Skip rumination_quality - disabled due to sampling rate limitation
+        if factor_name == 'rumination_quality':
             continue
 
         config = factor_config.get(factor_name, {'icon': '📊', 'color': '#95A5A6', 'label': factor_name, 'desc': ''})
