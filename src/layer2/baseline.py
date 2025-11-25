@@ -27,16 +27,16 @@ class BaselineCalculator:
     
     def __init__(
         self,
-        window_hours: int = 24,
+        window_hours: int = 336,  # 14 days = 14 * 24 = 336 hours
         percentile_lower: float = 25.0,
         percentile_upper: float = 75.0,
         min_samples: int = 60
     ):
         """
         Initialize baseline calculator.
-        
+
         Args:
-            window_hours: Window size for rolling baseline (default 24 hours)
+            window_hours: Window size for rolling baseline (default 336 hours = 14 days)
             percentile_lower: Lower percentile for baseline range (default 25th)
             percentile_upper: Upper percentile for baseline range (default 75th)
             min_samples: Minimum samples required for valid baseline (default 60)
@@ -45,7 +45,7 @@ class BaselineCalculator:
         self.percentile_lower = percentile_lower
         self.percentile_upper = percentile_upper
         self.min_samples = min_samples
-        
+
         logger.info(f"BaselineCalculator initialized: window={window_hours}h, "
                    f"percentiles=[{percentile_lower}, {percentile_upper}]")
     

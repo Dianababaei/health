@@ -61,8 +61,8 @@ class BaselineCalculator:
     
     def __init__(
         self,
-        window_days: int = 7,
-        min_data_days: int = 5,
+        window_days: int = 14,
+        min_data_days: int = 7,
         min_samples_per_day: int = 720,
         robust_method: str = "trimmed_mean",
         trim_percentage: float = 5.0,
