@@ -310,37 +310,66 @@ if uploaded_sensor is not None:
 
                     st.success(f"✅ Layer 3 Complete: {len(alerts)} total alerts detected")
 
+                    # SAVE RAW SENSOR DATA FIRST (before alerts and health scores)
+                    # This ensures data is available for any subsequent queries
+                    st.info("💾 Saving sensor data to database...")
+                    inserted, skipped = sensor_manager.append_sensor_data(df, cow_id_input)
+                    st.success(f"✅ Saved {inserted:,} new sensor readings ({skipped:,} duplicates skipped)")
+
                     # Save alerts to database
                     if len(alerts) > 0:
                         from health_intelligence.logging.alert_state_manager import AlertStateManager
+                        import time
                         alert_manager = AlertStateManager(db_path="data/alert_state.db")
 
                         saved_count = 0
                         failed_alerts = []
 
                         for alert in alerts:
-                            try:
-                                # Generate unique alert ID
-                                alert_id = f"{alert['cow_id']}_{alert['alert_type']}_{alert['timestamp'].replace(':', '-').replace(' ', '_')}"
+                            # Generate unique alert ID
+                            alert_id = f"{alert['cow_id']}_{alert['alert_type']}_{alert['timestamp'].replace(':', '-').replace(' ', '_')}"
 
-                                alert_data = {
-                                    'alert_id': alert_id,
-                                    'cow_id': alert['cow_id'],
-                                    'alert_type': alert['alert_type'],
-                                    'severity': alert['severity'],
-                                    'confidence': alert['confidence'],
-                                    'status': 'active',
-                                    'timestamp': alert['timestamp'],
-                                    'sensor_values': alert['sensor_values'],
-                                    'detection_details': alert.get('details', {})
-                                }
+                            alert_data = {
+                                'alert_id': alert_id,
+                                'cow_id': alert['cow_id'],
+                                'alert_type': alert['alert_type'],
+                                'severity': alert['severity'],
+                                'confidence': alert['confidence'],
+                                'status': 'active',
+                                'timestamp': alert['timestamp'],
+                                'sensor_values': alert['sensor_values'],
+                                'detection_details': alert.get('details', {})
+                            }
 
-                                if alert_manager.create_alert(alert_data):
-                                    saved_count += 1
-                                else:
-                                    failed_alerts.append(f"{alert['alert_type']} - creation returned False")
-                            except Exception as e:
-                                failed_alerts.append(f"{alert.get('alert_type', 'unknown')} - {str(e)}")
+                            # Retry logic for database locks with exponential backoff
+                            max_retries = 5
+                            retry_delay = 0.2  # Start with 200ms delay
+                            success = False
+
+                            for retry in range(max_retries):
+                                try:
+                                    if alert_manager.create_alert(alert_data):
+                                        saved_count += 1
+                                        success = True
+                                        break
+                                    else:
+                                        # False means duplicate or other non-lock error
+                                        success = True  # Don't count as failure
+                                        break
+                                except Exception as e:
+                                    if "database is locked" in str(e) and retry < max_retries - 1:
+                                        # Database locked - wait and retry with exponential backoff
+                                        wait_time = retry_delay * (2 ** retry)  # 0.2, 0.4, 0.8, 1.6, 3.2 seconds
+                                        time.sleep(wait_time)
+                                        continue
+                                    elif retry == max_retries - 1:
+                                        # Final retry failed
+                                        failed_alerts.append(f"{alert['alert_type']} - {str(e)} (after {max_retries} retries)")
+                                        break
+                                    else:
+                                        # Non-lock error - don't retry
+                                        failed_alerts.append(f"{alert['alert_type']} - {str(e)}")
+                                        break
 
                         if saved_count == len(alerts):
                             st.success(f"💾 Saved {saved_count}/{len(alerts)} alerts to database")
@@ -363,8 +392,7 @@ if uploaded_sensor is not None:
                             st.write(f"  - {alert['alert_type']} ({alert['severity']})")
 
                     # BEST PRACTICE: Calculate health score from ALL data in database
-                    # First, save the new data to database (will be done later, but need for calculation)
-                    sensor_manager.append_sensor_data(df, cow_id_input)
+                    # Sensor data was already saved earlier, now retrieve it for scoring
 
                     # Get all accumulated data for comprehensive health score
                     all_sensor_data = sensor_manager.get_all_data(cow_id_input)
@@ -490,10 +518,16 @@ st.sidebar.markdown("---")
 
 with st.spinner("Loading live data..."):
     try:
-        data_loader = st.session_state.data_loader
+        # Load sensor data from DATABASE (not CSV files)
+        # This ensures batch uploaded data appears immediately
+        from health_intelligence.logging import SensorDataManager
+        from datetime import datetime, timedelta
 
-        # Load sensor data (SINGLE COW MODE - most recent file only)
-        df = data_loader.load_sensor_data(time_range_hours=24)
+        sensor_manager = SensorDataManager(db_path="data/alert_state.db")
+
+        # Get ALL data for the cow - live feed will show the most recent by data timestamp
+        # This works regardless of when the data was uploaded (wall-clock time)
+        df = sensor_manager.get_sensor_data(cow_id=cow_id_input)
 
         # Load alerts from DATABASE (not JSON files)
         from health_intelligence.logging import AlertStateManager
@@ -560,7 +594,7 @@ try:
 
     if db_path.exists():
         # Get counts from database
-        conn = sqlite3.connect(str(db_path))
+        conn = sqlite3.connect(str(db_path), timeout=30.0)
         cursor = conn.cursor()
 
         cursor.execute("SELECT COUNT(*) FROM health_scores WHERE cow_id = ?", (cow_id_input,))
@@ -706,6 +740,10 @@ render_section_header(
 
 if len(df) > 0:
     # Get latest data point (single cow mode)
+    # Ensure timestamp is datetime for proper sorting
+    if not pd.api.types.is_datetime64_any_dtype(df['timestamp']):
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+
     row = df.sort_values('timestamp').iloc[-1]
 
     cow_id = cow_id_input  # Use the fixed cow ID
@@ -756,11 +794,11 @@ if len(df) > 0:
         'standing': 'Standing',
         'walking': 'Walking',
         'ruminating': 'Ruminating',
-        'ruminating_lying': 'Ruminating',
-        'ruminating_standing': 'Ruminating',
+        'ruminating_lying': 'Ruminating (Lying)',
+        'ruminating_standing': 'Ruminating (Standing)',
         'feeding': 'Feeding',
         'transition': 'Changing Position',
-        'uncertain': 'Monitoring',
+        'uncertain': 'Uncertain',
         'unknown': 'Unknown'
     }
     state_label = state_labels.get(state.lower(), state.capitalize())

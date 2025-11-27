@@ -16,7 +16,13 @@
       "Bash(git add:*)",
       "Bash(git rm:*)",
       "Bash(git commit:*)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(dir:*)",
+      "Bash(\"i:/livestock/health/src/health_intelligence/logging/alert_state_manager.py\")",
+      "Bash(git ls-tree:*)",
+      "Bash(\"i:/livestock/health/src/health_intelligence/logging/alert_logger.py\")",
+      "Bash(\"i:/livestock/health/src/health_intelligence/logging/sensor_data_manager.py\")",
+      "Bash(\"i:/livestock/health/src/health_intelligence/logging/health_score_manager.py\")"
     ],
     "deny": [],
     "ask": []

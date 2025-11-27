@@ -4,7 +4,7 @@ Dashboard Components Package
 Contains reusable UI components for the Artemis Health Dashboard.
 """
 
-from .alerts_panel import AlertsPanel, render_alerts_panel
+# Note: alerts_panel is deprecated, using notification_panel instead
 from .notification_panel import (
     render_notification_panel,
     render_alert_card,
@@ -21,9 +21,6 @@ from .alert_history import (
 )
 
 __all__ = [
-    # Alerts panel
-    'AlertsPanel',
-    'render_alerts_panel',
     # Notification panel
     'render_notification_panel',
     'render_alert_card',

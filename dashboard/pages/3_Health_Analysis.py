@@ -64,7 +64,7 @@ try:
     db_path = Path("data/alert_state.db")
 
     if db_path.exists():
-        conn_db = sqlite3.connect(str(db_path))
+        conn_db = sqlite3.connect(str(db_path), timeout=30.0)
         cursor = conn_db.cursor()
 
         cursor.execute("SELECT COUNT(*) FROM health_scores")

@@ -287,7 +287,10 @@ def setup_logging(config: dict) -> logging.Logger:
     # Get log level from config (default: INFO)
     log_level_str = config.get('logging', {}).get('level', 'INFO').upper()
     log_level = getattr(logging, log_level_str, logging.INFO)
-    
+
+    # Configure root logger to set level for all loggers
+    logging.getLogger().setLevel(log_level)
+
     # Create logger
     logger = logging.getLogger('realtime_service')
     logger.setLevel(log_level)
@@ -318,7 +321,13 @@ def setup_logging(config: dict) -> logging.Logger:
     console_handler.setLevel(log_level)
     console_handler.setFormatter(log_format)
     logger.addHandler(console_handler)
-    
+
+    # Also add handlers to root logger to capture logs from all modules
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+
     return logger
 
 
