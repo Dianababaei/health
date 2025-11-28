@@ -153,7 +153,7 @@ class ImmediateAlertDetector:
             },
             'heat_stress_alert': {
                 'temperature_threshold': 39.0,
-                'activity_threshold': 0.60,
+                'activity_threshold': 1.20,
                 'confirmation_window_minutes': 2,
                 'min_samples_for_confirmation': 2,
                 'severity': {'critical_temp': 39.8, 'warning_temp': 39.0},
@@ -163,11 +163,11 @@ class ImmediateAlertDetector:
                 'fxa_threshold': 0.05,
                 'mya_threshold': 0.05,
                 'rza_threshold': 0.05,
-                'duration_threshold_hours': 4.0,
+                'duration_threshold_hours': 2.0,
                 'max_movement_minutes_per_hour': 5,
                 'exclude_lying_state': True,
                 'exclude_ruminating_state': True,
-                'severity': {'critical_hours': 8.0, 'warning_hours': 4.0},
+                'severity': {'critical_hours': 6.0, 'warning_hours': 2.0},
                 'deduplication_window_minutes': 60,
             },
             'sensor_malfunction_alert': {
@@ -382,16 +382,16 @@ class ImmediateAlertDetector:
         df['motion_intensity'] = np.sqrt(
             df['fxa']**2 + df['mya']**2 + df['rza']**2
         )
-        
-        # Calculate activity level (0-1 scale)
-        # High motion + active behavioral state = high activity
-        df['activity_level'] = df['motion_intensity'] / 2.0  # Normalize roughly
-        
+
+        # Calculate activity level (uses motion intensity directly)
+        # Standardized with health scoring module
+        df['activity_level'] = df['motion_intensity']
+
         # Boost activity if in active behavioral state
         if behavioral_state in ['walking', 'standing', 'feeding']:
             df['activity_level'] = df['activity_level'] * 1.5
-        
-        df['activity_level'] = df['activity_level'].clip(0, 1.0)
+
+        df['activity_level'] = df['activity_level'].clip(0, 2.0)  # Allow higher values before clipping
         
         # Check condition: high temp AND high activity
         df['heat_stress_condition'] = (

@@ -126,8 +126,8 @@ def generate_test_data(days=15):
     scenarios.append(('Day 3', 'fever', 'critical', fever_start, fever_end))
 
     # DAY 7: HEAT STRESS (warning)
-    # Heat stress requires: temp > 39.0 AND activity_level > 0.6
-    # activity_level = motion_intensity / 2.0, so need motion > 1.2
+    # Heat stress requires: temp > 39.0 AND activity_level > 1.2
+    # activity_level = motion_intensity (no division), so need motion > 1.2
     day = 6
     day_start = day * minutes_per_day
     heat_start = day_start + 600   # 10:00
@@ -135,7 +135,7 @@ def generate_test_data(days=15):
     for i in range(heat_start, heat_end):
         data['temperature'][i] = np.random.normal(39.3, 0.15)  # Elevated
         data['state'][i] = 'walking'  # Active state
-        # High motion for activity_level > 0.6 (need motion > 1.2)
+        # High motion for activity_level > 1.2 (motion intensity used directly)
         data['fxa'][i] = np.random.normal(0, 0.5)
         data['mya'][i] = np.random.normal(0, 0.5)
         data['rza'][i] = np.random.normal(0.7, 0.1)  # Standing/walking posture
@@ -145,10 +145,11 @@ def generate_test_data(days=15):
     # Inactivity check: abs(fxa) < 0.05 AND abs(mya) < 0.05 AND abs(rza) < 0.05
     # Also behavioral_state must NOT be 'lying' or 'ruminating'
     # This represents a cow that is completely still (not normal behavior)
+    # Threshold changed from 4 hours to 2 hours
     day = 10
     day_start = day * minutes_per_day
     inactivity_start = day_start
-    inactivity_end = day_start + 480  # 8 hours with no movement
+    inactivity_end = day_start + 180  # 3 hours with no movement (exceeds 2-hour threshold)
     for i in range(inactivity_start, inactivity_end):
         data['state'][i] = 'standing'  # NOT lying (excluded from inactivity)
         # All axes near zero = complete stillness

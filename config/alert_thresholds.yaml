@@ -43,9 +43,9 @@ heat_stress_alert:
   # Temperature threshold (°C)
   temperature_threshold: 39.0          # Alert if temp > 39.0°C
   
-  # Activity level threshold (normalized 0-1 scale)
+  # Activity level threshold (motion intensity scale)
   # High activity calculated from movement intensity + behavioral state
-  activity_threshold: 0.60             # Alert if activity > 0.60 (high activity)
+  activity_threshold: 1.20             # Alert if activity > 1.20 (high activity)
   
   # Confirmation window (minutes)
   confirmation_window_minutes: 2       # Require 2 consecutive minutes
@@ -75,7 +75,7 @@ inactivity_alert:
   rza_threshold: 0.05                  # Vertical acceleration threshold
   
   # Inactivity duration threshold (hours)
-  duration_threshold_hours: 4.0        # Alert after 4 hours of stillness
+  duration_threshold_hours: 2.0        # Alert after 2 hours of stillness
   
   # Maximum allowed brief movements (minutes per hour)
   max_movement_minutes_per_hour: 5     # Allow up to 5 min/hour of brief movement
@@ -91,8 +91,8 @@ inactivity_alert:
   
   # Severity classification
   severity:
-    critical_hours: 8.0                # Critical if inactive > 8 hours
-    warning_hours: 4.0                 # Warning if inactive 4-8 hours
+    critical_hours: 6.0                # Critical if inactive > 6 hours
+    warning_hours: 2.0                 # Warning if inactive 2-6 hours
   
   # Alert deduplication window (minutes)
   deduplication_window_minutes: 60     # Don't repeat alert for 1 hour
